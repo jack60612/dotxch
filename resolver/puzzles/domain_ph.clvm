@@ -1,0 +1,13 @@
+(mod (RELATIVE_EXPIRY_HEIGHT DOMAIN_NAME amount parent_coin_amount parent_ph parent_coin_parent)
+; this puzzle does not really do a lot, however i thought it would be nice to be able to easily clean up the dust
+
+(include condition_codes.clvm)
+
+; main
+(list
+    (list ASSERT_HEIGHT_RELATIVE RELATIVE_EXPIRY_HEIGHT)
+    (list ASSERT_MY_PARENT_ID (sha256 parent_coin_parent parent_ph parent_coin_amount) )
+    (list ASSERT_MY_AMOUNT amount)
+    (list CREATE_COIN_ANNOUNCEMENT (sha256 DOMAIN_NAME))
+    (list CREATE_COIN parent_ph amount )
+))

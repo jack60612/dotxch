@@ -1,0 +1,30 @@
+(mod (FEE_ADDRESS main_domain_ph parent_id singleton_ph amount domain_name launcher_id)
+
+(include condition_codes.clvm)
+
+
+; takes a lisp tree and returns the hash of it
+(defun sha256tree (TREE)
+    (if (l TREE)
+        (sha256 2 (sha256tree (f TREE)) (sha256tree (r TREE)))
+        (sha256 1 TREE)
+    )
+)
+
+
+(defun-inline assert_shortcut (singleton_ph parent_id id_domain_hash)
+     (list ASSERT_COIN_ANNOUNCEMENT (sha256 parent_id id_domain_hash))
+     (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 singleton_ph id_domain_hash))
+     (list CREATE_PUZZLE_ANNOUNCEMENT  id_domain_hash)
+)
+; main
+(if (> amount 10000000000)
+    (list
+     (list ASSERT_MY_AMOUNT amount)
+     (list ASSERT_MY_PARENT_ID parent_id)
+     (assert_shortcut singleton_ph parent_id (sha256tree (list domain_name launcher_id)))
+     (list CREATE_COIN FEE_ADDRESS 10000000000 )
+     (list CREATE_COIN main_domain_ph 1 (launcher_id))
+     )
+    (x)
+))
