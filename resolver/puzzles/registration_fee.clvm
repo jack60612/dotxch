@@ -1,4 +1,4 @@
-(mod (FEE_ADDRESS main_domain_ph parent_id singleton_ph domain_name launcher_id)
+(mod (FEE_ADDRESS domain_name main_domain_ph parent_id singleton_ph singleton_parent_id launcher_id)
 
     (include condition_codes.clvm)
 
@@ -11,7 +11,7 @@
     ; main
     (list
         (list ASSERT_MY_PARENT_ID parent_id)
-        (assert_shortcut singleton_ph parent_id (sha256 domain_name launcher_id))
+        (assert_shortcut singleton_ph parent_id (sha256 domain_name singleton_parent_id))
         (list CREATE_COIN FEE_ADDRESS 10000000000 )
         (list CREATE_COIN main_domain_ph 1 (launcher_id))
      )
