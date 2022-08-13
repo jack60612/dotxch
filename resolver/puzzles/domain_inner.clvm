@@ -1,0 +1,49 @@
+(mod (REG_FEE_PH DOMAIN_NAME MOD_HASH PUB_KEY METADATA parent_id mode new_metadata new_pub_key)
+    ;; Note: REG_FEE_PH & DOMAIN_NAME are never changed in puzzle, so the mod hash must be based on
+    ;; a puzzle with those values already curried.
+    ; mode = 0 for normal metadata update, 1 for renewal / creation
+
+    (include condition_codes.clvm)
+    (include "curry-and-treehash.clinc")
+
+    ; takes a lisp tree and returns the hash of it
+    (defun sha256tree1 (TREE)
+        (if (l TREE)
+            (sha256 2 (sha256tree1 (f TREE)) (sha256tree1 (r TREE)))
+            (sha256 1 TREE)
+        )
+    )
+
+    (defun-inline new-puzzle-hash (MOD_HASH mod_hash_hash metadata pub_key)
+        (puzzle-hash-of-curried-function
+            MOD_HASH
+            metadata pub_key mod_hash_hash  ;; parameters must be passed in reverse order (Thanks Seb)
+        )
+    )
+    (defun-inline renewal_asserts (id_domain_hash)
+        (list CREATE_PUZZLE_ANNOUNCEMENT  id_domain_hash) ;; for the fee puzzle
+        (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 REG_FEE_PH id_domain_hash)) ;; from the fee puzzle
+    )
+
+    ;main
+    (if new_pub_key
+        (list ;; Transferring Domain
+            (list AGG_SIG_ME PUB_KEY (sha256tree1 new_pub_key new_metadata))
+            (list CREATE_COIN (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 new_metadata) (sha256tree1 new_pub_key)) 1)
+        )
+        (if mode
+            (list ;; Renewing Domain
+                (list AGG_SIG_ME PUB_KEY (sha256tree1 parent_id (if new_metadata new_metadata METADATA))) ;; parent id + new or existing metadata
+                (list ASSERT_MY_PARENT_ID parent_id) ;; Validate Parent ID
+                (renewal_asserts (sha256 DOMAIN_NAME parent_id)) ;; make sure we bind to fee puzzle
+                ;; do a final spend to expose the data.
+                (list CREATE_COIN
+                (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 (if new_metadata new_metadata METADATA)) (sha256tree1 PUB_KEY)) 1)
+            )
+            (list ;; Updating Metadata
+                (list AGG_SIG_ME PUB_KEY (sha256tree1 new_metadata))
+                (list CREATE_COIN (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 new_metadata) (sha256tree1 PUB_KEY)) 1)
+            )
+        )
+    )
+)
