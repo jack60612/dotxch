@@ -3,6 +3,27 @@ dependencies = [
     "chia-blockchain==1.5.0",
 ]
 
+dev_dependencies = [
+    "build",
+    "coverage",
+    "pre-commit",
+    "pylint",
+    "pytest",
+    "isort",
+    "flake8",
+    "mypy",
+    # TODO: black 22.1.0 requires click>=8, remove this pin after updating to click 8
+    "black==21.12b0",
+    "aiohttp_cors",  # For blackd
+    "ipython",  # For asyncio debugging
+    "pyinstaller==5.0",
+    "types-aiofiles",
+    "types-click",
+    "types-cryptography",
+    "types-pkg_resources",
+    "types-pyyaml",
+    "types-setuptools",
+]
 
 
 setup(
@@ -16,6 +37,9 @@ setup(
     python_requires=">=3.7, <4",
     keywords="xch dotxch chia domain",
     install_requires=dependencies,
+    extras_require=dict(
+        dev=dev_dependencies,
+    ),
     packages=[
         "resolver",
         "resolver.cmds",
