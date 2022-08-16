@@ -1,4 +1,5 @@
 from setuptools import setup
+
 dependencies = [
     "chia-blockchain==1.5.0",
 ]
@@ -27,13 +28,13 @@ dev_dependencies = [
 
 
 setup(
-    name='dotxch',
-    version='0.0.1',
-    url='https://dotxch.io',
-    license='Apache Licence',
-    author='Jack Nelson',
-    author_email='jack@jacknelson.xyz',
-    description='dot-xch puzzles and tooling',
+    name="dotxch",
+    version="0.0.1",
+    url="https://dotxch.io",
+    license="Apache Licence",
+    author="Jack Nelson",
+    author_email="jack@jacknelson.xyz",
+    description="dot-xch puzzles and tooling",
     python_requires=">=3.7, <4",
     keywords="xch dotxch chia domain",
     install_requires=dependencies,
