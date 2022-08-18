@@ -1,18 +1,18 @@
-(mod (FEE_ADDRESS domain_name main_domain_ph parent_id singleton_ph singleton_parent_id launcher_id)
+(mod (DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name parent_id singleton_ph launcher_id singleton_parent_id)
+;; all curried arguments should never change!
 
     (include condition_codes.clvm)
+    (include curry-and-treehash.clinc)
 
-
-    (defun-inline assert_shortcut (singleton_ph parent_id id_domain_hash)
-         (list ASSERT_COIN_ANNOUNCEMENT (sha256 parent_id id_domain_hash)) ;; from the initial spend
-         (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 singleton_ph id_domain_hash)) ;; this is from the singleton inner puzzle
-         (list CREATE_PUZZLE_ANNOUNCEMENT  id_domain_hash) ;; this is for the singleton and the initial spend
-    )
+    (defun stage1 (DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name parent_id singleton_ph launcher_id id_domain_hash)
+        (list
+             (list ASSERT_MY_PARENT_ID parent_id)
+             (list ASSERT_COIN_ANNOUNCEMENT (sha256 parent_id id_domain_hash)) ;; from the initial spend
+             (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 singleton_ph id_domain_hash)) ;; this is from the singleton inner puzzle
+             (list CREATE_PUZZLE_ANNOUNCEMENT  id_domain_hash) ;; this is for the singleton and the initial spend
+             (list CREATE_COIN FEE_ADDRESS FEE_AMOUNT)
+             (list CREATE_COIN (puzzle-hash-of-curried-function DOMAIN_PH_MOD (sha256 1 domain_name)) 1 (list launcher_id))
+    ))
     ; main
-    (list
-        (list ASSERT_MY_PARENT_ID parent_id)
-        (assert_shortcut singleton_ph parent_id (sha256 domain_name singleton_parent_id))
-        (list CREATE_COIN FEE_ADDRESS 10000000000 )
-        (list CREATE_COIN main_domain_ph 1 (launcher_id))
-     )
+    (stage1 DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name parent_id singleton_ph launcher_id (sha256 domain_name singleton_parent_id))
 )
