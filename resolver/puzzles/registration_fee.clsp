@@ -1,4 +1,4 @@
-(mod (DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name parent_id singleton_ph launcher_id singleton_parent_id)
+(mod (DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name singleton_ph parent_id launcher_id singleton_parent_id)
 ;; all curried arguments should never change!
 
     (include condition_codes.clvm)

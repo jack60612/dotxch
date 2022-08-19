@@ -10,8 +10,8 @@ from chia_rs import Coin
 class PuzzleType(Enum):
     DOMAIN = 0
     FEE = 1
-    OUTER = 2
-    INNER = 3
+    INNER = 2
+    OUTER = 3
 
 
 class BasePuzzle:
