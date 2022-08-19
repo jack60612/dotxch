@@ -24,7 +24,6 @@ from resolver.puzzles.puzzles import (
     REGISTRATION_FEE_MOD_HASH,
 )
 
-
 class DomainPuzzle(BasePuzzle):
     def __init__(self, domain_name: str):
         self.domain_name = domain_name
@@ -53,9 +52,12 @@ class DomainInnerPuzzle(BasePuzzle):
         self.cur_metadata = metadata
         self.AGG_SIG_ME_ADDITIONAL_DATA = sig_additional_data
         self.MAX_BLOCK_COST_CLVM = max_block_cost
-        new_mod_hash = INNER_SINGLETON_MOD.curry(domain_name).get_tree_hash()
-        curry_args = [domain_name, new_mod_hash, pub_key, metadata]
-        super().__init__(PuzzleType(2), INNER_SINGLETON_MOD, INNER_SINGLETON_MOD_HASH, 4, 4, curry_args)
+        # because the puzzle needs its hash with the domain,
+        # we calculate it below, and modify the puzzle, unlike other drivers.
+        puzzle_mod = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
+        puzzle_mod_hash = puzzle_mod.get_tree_hash()
+        curry_args = [puzzle_mod_hash, pub_key, metadata]
+        super().__init__(PuzzleType(2), puzzle_mod, puzzle_mod_hash, 3, 4, curry_args)
 
     async def to_spend_bundle(
         self,
@@ -77,13 +79,19 @@ class DomainInnerPuzzle(BasePuzzle):
             if new_metadata is None:
                 new_metadata = 0
             sol_args = [1, new_metadata, 0]
-        else:
+        elif new_metadata is not None:
             sol_args = [0, new_metadata, 0]
+        else:
+            raise ValueError("No arguments provided")
         self.solution_args += sol_args
         coin_spend = super().to_coin_spend(coin)
+
+        async def priv_key(pk: G1Element) -> PrivateKey:
+            return private_key
+
         return await sign_coin_spends(
             [coin_spend],
-            private_key,
+            priv_key,
             self.AGG_SIG_ME_ADDITIONAL_DATA,
             self.MAX_BLOCK_COST_CLVM,
         )

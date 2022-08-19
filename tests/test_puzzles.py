@@ -53,5 +53,6 @@ class TestPuzzles:
             cs.puzzle_reveal, cs.solution, (1 << 32) - 1
         )
         r = created_outputs_for_conditions_dict(c_spend, example_coin.name())
-        assert r[0].puzzle_hash == INNER_SINGLETON_MOD.curry(Program.to([domain_name, reg_class.new_mod_hash, pub_key, m_data])).get_tree_hash()
+        pre_puzzle = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
+        assert r[0].puzzle_hash.hex() == pre_puzzle.curry(*[pre_puzzle.get_tree_hash(), pub_key, m_data]).get_tree_hash().hex()
         assert reg_class.generate_solution().get_tree_hash().hex() == 'f46ffa082c9f3eee42d6d5ddf1d0e58ca1b13dc5fb008edbd432d4a0169ed45c'

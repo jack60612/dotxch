@@ -43,7 +43,7 @@ class BasePuzzle:
 
     def complete_puzzle(self) -> Program:
         if not self.is_complete_puzzle:
-            raise ValueError("Puzzle is missing curry arguments")
+            raise ValueError("Puzzle is missing or has too many curry arguments.")
         if self.num_curry_args != 0:
             return self.raw_puzzle.curry(*self.curry_args)
         else:
@@ -54,7 +54,7 @@ class BasePuzzle:
 
     def generate_solution(self) -> Program:
         if not self.is_spendable_puzzle:
-            raise ValueError("Puzzle is missing solution arguments.")
+            raise ValueError("Puzzle is missing or has too many solution arguments.")
         if len(self.solution_args) > 1:
             return Program.to(self.solution_args)
         else:
