@@ -40,7 +40,14 @@ class DomainPuzzle(BasePuzzle):
 
 
 class DomainInnerPuzzle(BasePuzzle):
-    def __init__(self, sig_additional_data: bytes, max_block_cost: int, domain_name: str, pub_key: G1Element, metadata: List[Tuple[Any]]):
+    def __init__(
+        self,
+        sig_additional_data: bytes,
+        max_block_cost: int,
+        domain_name: str,
+        pub_key: G1Element,
+        metadata: List[Tuple[Any]],
+    ):
         self.domain_name = domain_name
         self.cur_pub_key = pub_key
         self.cur_metadata = metadata
