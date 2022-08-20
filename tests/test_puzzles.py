@@ -32,7 +32,7 @@ class TestPuzzles:
             cs.puzzle_reveal, cs.solution, (1 << 32) - 1
         )
         r = created_outputs_for_conditions_dict(c_spend, example_coin.name())
-        assert r[1].puzzle_hash == DOMAIN_PH_MOD.curry(Program.to(domain_name)).get_tree_hash()
+        assert r[1].puzzle_hash == DOMAIN_PH_MOD.curry(domain_name).get_tree_hash()
         assert reg_class.generate_solution().get_tree_hash().hex() == '0c281d6f403ea7101326ae78d6bc56203c5ef316e6cba08f84d9bf7fe59364dd'
 
     @pytest.mark.asyncio
