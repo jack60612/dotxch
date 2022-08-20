@@ -56,9 +56,10 @@ class BasePuzzle:
         if not self.is_spendable_puzzle:
             raise ValueError("Puzzle is missing or has too many solution arguments.")
         if len(self.solution_args) > 1:
-            return Program.to(self.solution_args)
+            result: Program = Program.to(self.solution_args)
         else:
-            return Program.to(self.solution_args[0])
+            result = Program.to(self.solution_args[0])
+        return result
 
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
         if coin.puzzle_hash != self.complete_puzzle_hash():

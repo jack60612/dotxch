@@ -1,12 +1,4 @@
 repos:
--   repo: local
-    hooks:
-    -   id: init_py_files
-        name: __init__.py files
-        entry: python3 tests/build-init-files.py -v --root .
-        language: python
-        pass_filenames: false
-        additional_dependencies: [click~=7.1]
 # The following, commented hook is the usual way to add isort. However, it doesn't work in some environments.
 # See https://github.com/PyCQA/isort/issues/1874#issuecomment-1002212936
 # -----------------------------------------------------

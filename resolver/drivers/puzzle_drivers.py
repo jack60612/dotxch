@@ -1,17 +1,21 @@
-from typing import Optional, List, Tuple, Any
+from typing import Any, List, Optional, Tuple, Union
 
-from blspy import G1Element, PrivateKey, G2Element
+from blspy import G1Element, G2Element, PrivateKey
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.program import Program
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
 from chia.types.spend_bundle import SpendBundle
+
+"""
+these will be uncommented later
 from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
     SINGLETON_LAUNCHER,
     SINGLETON_LAUNCHER_HASH,
     SINGLETON_MOD,
     SINGLETON_MOD_HASH,
 )
+"""
 from chia.wallet.sign_coin_spends import sign_coin_spends
 
 from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType
@@ -19,10 +23,10 @@ from resolver.puzzles.puzzles import (
     DOMAIN_PH_MOD,
     DOMAIN_PH_MOD_HASH,
     INNER_SINGLETON_MOD,
-    INNER_SINGLETON_MOD_HASH,
     REGISTRATION_FEE_MOD,
     REGISTRATION_FEE_MOD_HASH,
 )
+
 
 class DomainPuzzle(BasePuzzle):
     def __init__(self, domain_name: str):
@@ -63,8 +67,8 @@ class DomainInnerPuzzle(BasePuzzle):
         self,
         private_key: PrivateKey,
         coin: Coin,
-        new_pubkey: Optional[G1Element] = None,
-        new_metadata: Optional[List[Tuple[Any]]] = None,
+        new_pubkey: Optional[Union[G1Element, bool]] = None,
+        new_metadata: Optional[Union[List[Tuple[Any]], bool]] = None,
         renew: bool = False,
     ) -> SpendBundle:
         if private_key.get_g1() != self.cur_pub_key:
@@ -77,7 +81,7 @@ class DomainInnerPuzzle(BasePuzzle):
             sol_args = [0, new_metadata, new_pubkey]
         elif renew:
             if new_metadata is None:
-                new_metadata = 0
+                new_metadata = False
             sol_args = [1, new_metadata, 0]
         elif new_metadata is not None:
             sol_args = [0, new_metadata, 0]
@@ -120,33 +124,3 @@ class RegistrationFeePuzzle(BasePuzzle):
     async def to_spend_bundle(self, coin: Coin) -> SpendBundle:
         coin_spends = [self.to_coin_spend(coin)]
         return SpendBundle(coin_spends, G2Element())
-
-
-### Old Code
-COIN_AMOUNT = 1
-
-
-def singleton_puzzle(launcher_id: Program, launcher_puzzle_hash: bytes32, inner_puzzle: Program) -> Program:
-    return SINGLETON_MOD.curry((SINGLETON_MOD_HASH, (launcher_id, launcher_puzzle_hash)), inner_puzzle)
-
-
-# def create_beacon_puzzle(data, pub_key, version=1, mod=BEACON_MOD) -> Program:
-#    return mod.curry(mod.get_tree_hash(), data, version, pub_key)
-
-
-def get_inner_puzzle_reveal(coin_spend: CoinSpend) -> Program:
-    if coin_spend.coin.puzzle_hash != SINGLETON_LAUNCHER_HASH:
-        full_puzzle = Program.from_bytes(bytes(coin_spend.puzzle_reveal))
-        r = full_puzzle.uncurry()
-        if r is not None:
-            _, args = r
-            _, inner_puzzle = list(args.as_iter())
-            return inner_puzzle
-
-
-def solution_for_beacon(version, commit=None, new_pub_key=None, adapt=False) -> Program:
-    if not commit:
-        commit = []
-    if not adapt:
-        return Program.to([version, commit, new_pub_key or []])
-    return Program.to([[], version, commit, new_pub_key or []])
