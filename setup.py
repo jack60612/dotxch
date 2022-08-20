@@ -10,6 +10,7 @@ dev_dependencies = [
     "pre-commit",
     "pylint",
     "pytest",
+    "pytest-asyncio",
     "isort",
     "flake8",
     "mypy",

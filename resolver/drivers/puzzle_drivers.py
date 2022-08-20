@@ -30,8 +30,7 @@ from resolver.puzzles.puzzles import (
 
 class DomainPuzzle(BasePuzzle):
     def __init__(self, domain_name: str):
-        self.domain_name = domain_name
-        super().__init__(PuzzleType(0), DOMAIN_PH_MOD, DOMAIN_PH_MOD_HASH, 1, 1, [domain_name])
+        super().__init__(PuzzleType(0), DOMAIN_PH_MOD, DOMAIN_PH_MOD_HASH, 1, 1, [domain_name], domain_name=domain_name)
 
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
         self.solution_args.append(coin.amount)
@@ -51,7 +50,6 @@ class DomainInnerPuzzle(BasePuzzle):
         pub_key: G1Element,
         metadata: List[Tuple[Any]],
     ):
-        self.domain_name = domain_name
         self.cur_pub_key = pub_key
         self.cur_metadata = metadata
         self.AGG_SIG_ME_ADDITIONAL_DATA = sig_additional_data
@@ -61,7 +59,7 @@ class DomainInnerPuzzle(BasePuzzle):
         puzzle_mod = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
         puzzle_mod_hash = puzzle_mod.get_tree_hash()
         curry_args = [puzzle_mod_hash, pub_key, metadata]
-        super().__init__(PuzzleType(2), puzzle_mod, puzzle_mod_hash, 3, 4, curry_args)
+        super().__init__(PuzzleType(2), puzzle_mod, puzzle_mod_hash, 3, 4, curry_args, domain_name=domain_name)
 
     async def to_spend_bundle(
         self,
@@ -111,15 +109,23 @@ class RegistrationFeePuzzle(BasePuzzle):
         singleton_parent_id: bytes32,
     ):
         self.domain_inner_ph = domain_inner_ph
-        self.domain_name = domain_name
         solutions_list = [
-            self.domain_name,
+            domain_name,
             self.domain_inner_ph,
             fee_parent_id,
             singleton_launcher_id,
             singleton_parent_id,
         ]
-        super().__init__(PuzzleType(1), REGISTRATION_FEE_MOD, REGISTRATION_FEE_MOD_HASH, 0, 5, [], solutions_list)
+        super().__init__(
+            PuzzleType(1),
+            REGISTRATION_FEE_MOD,
+            REGISTRATION_FEE_MOD_HASH,
+            0,
+            5,
+            [],
+            solutions_list,
+            domain_name=domain_name,
+        )
 
     async def to_spend_bundle(self, coin: Coin) -> SpendBundle:
         coin_spends = [self.to_coin_spend(coin)]
