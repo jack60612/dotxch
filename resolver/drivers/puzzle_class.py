@@ -42,6 +42,15 @@ def program_to_list(program: Program) -> List[Any]:
 
 
 class BasePuzzle:
+    puzzle_type: PuzzleType
+    raw_puzzle: Program
+    puzzle_mod: bytes32
+    num_curry_args: int
+    num_solution_args: int
+    solution_args: List[Any]
+    curry_args: List[Any]
+    domain_name: Optional[str]
+
     def __init__(
         self,
         puzzle_type: PuzzleType,
@@ -63,7 +72,7 @@ class BasePuzzle:
         self.solution_args: List[Any] = solution_args if solution_args else []
 
     @classmethod
-    def from_coin_spend(cls, puzzle_type: PuzzleType, coin_spend: CoinSpend) -> "BasePuzzle":
+    def from_coin_spend(cls, coin_spend: CoinSpend, puzzle_type: PuzzleType) -> "BasePuzzle":
         try:
             coin_spend.additions()
         except Exception:

@@ -47,18 +47,48 @@ class TestPuzzles:
         domain_name = "jack.xch"
         pub_key = PRIVATE_KEY.get_g1()
         m_data = [("a", "a"), ("b", "b")]
-        reg_class = DomainInnerPuzzle(
-            DEFAULT_CONSTANTS.AGG_SIG_ME_ADDITIONAL_DATA,
-            DEFAULT_CONSTANTS.MAX_BLOCK_COST_CLVM,
+        inner_puz_class = DomainInnerPuzzle(
             domain_name,
             pub_key,
             m_data,  # type: ignore[arg-type]
         )
-        example_coin = Coin(DOMAIN_PH_MOD_HASH, reg_class.complete_puzzle_hash(), 1)
-        with pytest.raises(ValueError):
-            await reg_class.to_spend_bundle(AugSchemeMPL.key_gen(token_bytes(32)), example_coin, renew=True)
+        example_coin = Coin(DOMAIN_PH_MOD_HASH, inner_puz_class.complete_puzzle_hash(), 1)
+        inner_puz_class.generate_solution_args(renew=True)
+        with pytest.raises(NotImplementedError):
+            await inner_puz_class.to_spend_bundle(AugSchemeMPL.key_gen(token_bytes(32)), example_coin)
 
-        sb = await reg_class.to_spend_bundle(PRIVATE_KEY, example_coin, renew=True)
+        cs = inner_puz_class.to_coin_spend(example_coin)
+        _, c_spend, _ = conditions_dict_for_solution(cs.puzzle_reveal, cs.solution, (1 << 32) - 1)
+        assert c_spend is not None  # mypy
+        r = created_outputs_for_conditions_dict(c_spend, example_coin.name())
+        pre_puzzle = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
+        assert (
+            r[0].puzzle_hash.hex()
+            == pre_puzzle.curry(*[pre_puzzle.get_tree_hash(), pub_key, m_data]).get_tree_hash().hex()
+        )
+        assert (
+            inner_puz_class.generate_solution().get_tree_hash().hex()
+            == "f46ffa082c9f3eee42d6d5ddf1d0e58ca1b13dc5fb008edbd432d4a0169ed45c"
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.xfail(reason="Not Completed")
+    async def test_outer_puzzle(self) -> None:
+        domain_name = "jack.xch"
+        pub_key = PRIVATE_KEY.get_g1()
+        m_data = [("a", "a"), ("b", "b")]
+        outer_puz_class = DomainInnerPuzzle(
+            domain_name,
+            pub_key,
+            m_data,  # type: ignore[arg-type]
+        )
+        example_coin = Coin(DOMAIN_PH_MOD_HASH, outer_puz_class.complete_puzzle_hash(), 1)
+        outer_puz_class.generate_solution_args(renew=True)
+
+        with pytest.raises(ValueError):
+            await outer_puz_class.to_spend_bundle(AugSchemeMPL.key_gen(token_bytes(32)), example_coin)
+
+        sb = await outer_puz_class.to_spend_bundle(PRIVATE_KEY, example_coin)
         cs = sb.coin_spends[0]
         _, c_spend, _ = conditions_dict_for_solution(cs.puzzle_reveal, cs.solution, (1 << 32) - 1)
         assert c_spend is not None  # mypy
@@ -69,6 +99,6 @@ class TestPuzzles:
             == pre_puzzle.curry(*[pre_puzzle.get_tree_hash(), pub_key, m_data]).get_tree_hash().hex()
         )
         assert (
-            reg_class.generate_solution().get_tree_hash().hex()
+            outer_puz_class.generate_solution().get_tree_hash().hex()
             == "f46ffa082c9f3eee42d6d5ddf1d0e58ca1b13dc5fb008edbd432d4a0169ed45c"
         )
