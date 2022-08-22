@@ -6,6 +6,7 @@ from blspy import AugSchemeMPL, PrivateKey
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
 from chia.types.blockchain_format.program import Program
 from chia.types.blockchain_format.sized_bytes import bytes32
+from chia.types.coin_spend import CoinSpend
 from chia.util.condition_tools import conditions_dict_for_solution, created_outputs_for_conditions_dict
 from chia.util.keychain import mnemonic_to_seed
 from chia_rs import Coin
@@ -23,8 +24,22 @@ PRIVATE_KEY: PrivateKey = AugSchemeMPL.key_gen(seed)
 class TestPuzzles:
     def test_domain_ph(self) -> None:
         domain_name = "jack.xch"
-        correct_ph = "9783e069ef2c4b80e93619ae914b273d6c7f06c6d0c9e1ce66230390f9063cd3"
-        assert DomainPuzzle(domain_name).complete_puzzle_hash().hex() == correct_ph
+        correct_ph = bytes32.from_hexstr("9783e069ef2c4b80e93619ae914b273d6c7f06c6d0c9e1ce66230390f9063cd3")
+        example_coin = Coin(REGISTRATION_FEE_MOD_HASH, correct_ph, 1)
+        dp_class = DomainPuzzle(domain_name)
+        dp_class.solution_args.append(1)
+        # Jack testing something, please remove
+        a = CoinSpend(
+            Coin(REGISTRATION_FEE_MOD_HASH, dp_class.complete_puzzle_hash(), 1),
+            dp_class.complete_puzzle().to_serialized_program(),
+            dp_class.generate_solution().to_serialized_program(),
+        )
+        a.additions()
+        assert dp_class.complete_puzzle_hash() == correct_ph
+        cs = dp_class.to_coin_spend(example_coin)
+        assert cs.additions() == []
+        cs_json = ""
+        assert dp_class == DomainPuzzle.from_coin_spend(CoinSpend.from_json_dict(cs_json))
 
     def test_registration_fee(self) -> None:
         example_coin = Coin(DOMAIN_PH_MOD_HASH, REGISTRATION_FEE_MOD_HASH, 10000000001)

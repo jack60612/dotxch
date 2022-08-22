@@ -32,14 +32,15 @@ class DomainPuzzle(BasePuzzle):
         )
 
     @classmethod
-    def from_coin_spend(cls, coin_spend: CoinSpend, _) -> "DomainPuzzle":
+    def from_coin_spend(cls, coin_spend: CoinSpend, _=None) -> "DomainPuzzle":
         spend_super_class = super().from_coin_spend(coin_spend, PuzzleType.DOMAIN)
         if spend_super_class.puzzle_mod != DOMAIN_PH_MOD_HASH:
             raise ValueError("Incorrect Puzzle Driver")
         return cls(spend_super_class.domain_name)
 
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
-        self.solution_args.append(coin.amount)
+        if len(self.solution_args) != 1:
+            self.solution_args.append(coin.amount)
         return super().to_coin_spend(coin)
 
     async def to_spend_bundle(self, coin: Coin, _) -> SpendBundle:
@@ -183,6 +184,6 @@ class RegistrationFeePuzzle(BasePuzzle):
         _, outer_ph, fee_parent_id, singleton_launcher_id, singleton_parent_id = spend_super_class.solution_args
         return cls(spend_super_class.domain_name, outer_ph, fee_parent_id, singleton_launcher_id, singleton_parent_id)
 
-    async def to_spend_bundle(self, coin: Coin, _) -> SpendBundle:
+    async def to_spend_bundle(self, coin: Coin, _=None) -> SpendBundle:
         coin_spends = [self.to_coin_spend(coin)]
         return SpendBundle(coin_spends, G2Element())
