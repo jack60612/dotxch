@@ -64,7 +64,13 @@ class DomainInnerPuzzle(BasePuzzle):
         curry_args = [puzzle_mod_hash, pub_key, metadata]
         super().__init__(PuzzleType.INNER, puzzle_mod, puzzle_mod_hash, 3, 4, curry_args, domain_name=domain_name)
 
-    # TODO: Implement from_coin_spend
+    @classmethod
+    def from_coin_spend(cls, coin_spend: CoinSpend, _=None) -> "DomainInnerPuzzle":
+        spend_super_class = super().from_coin_spend(coin_spend, PuzzleType.INNER)
+        if spend_super_class.raw_puzzle.uncurry()[0] != INNER_SINGLETON_MOD:
+            raise ValueError("Incorrect Puzzle Driver")
+        curry_args = spend_super_class.curry_args
+        return cls(spend_super_class.domain_name, curry_args[1], curry_args[2])
 
     def generate_solution_args(
         self,
@@ -177,8 +183,8 @@ class RegistrationFeePuzzle(BasePuzzle):
         )
 
     @classmethod
-    def from_coin_spend(cls, coin_spend: CoinSpend, _) -> "RegistrationFeePuzzle":
-        spend_super_class = super().from_coin_spend(coin_spend, PuzzleType.DOMAIN)
+    def from_coin_spend(cls, coin_spend: CoinSpend, _=None) -> "RegistrationFeePuzzle":
+        spend_super_class = super().from_coin_spend(coin_spend, PuzzleType.FEE)
         if spend_super_class.puzzle_mod != REGISTRATION_FEE_MOD_HASH:
             raise ValueError("Incorrect Puzzle Driver")
         _, outer_ph, fee_parent_id, singleton_launcher_id, singleton_parent_id = spend_super_class.solution_args

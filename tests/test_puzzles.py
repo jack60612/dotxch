@@ -7,11 +7,12 @@ from chia.consensus.default_constants import DEFAULT_CONSTANTS
 from chia.types.blockchain_format.program import Program
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
+from chia.util.byte_types import hexstr_to_bytes
 from chia.util.condition_tools import conditions_dict_for_solution, created_outputs_for_conditions_dict
 from chia.util.keychain import mnemonic_to_seed
 from chia_rs import Coin
 
-from resolver.drivers.puzzle_drivers import DomainInnerPuzzle, DomainPuzzle, RegistrationFeePuzzle
+from resolver.drivers.puzzle_drivers import DomainInnerPuzzle, DomainPuzzle, RegistrationFeePuzzle, DomainOuterPuzzle
 from resolver.puzzles.puzzles import DOMAIN_PH_MOD, DOMAIN_PH_MOD_HASH, INNER_SINGLETON_MOD, REGISTRATION_FEE_MOD_HASH
 
 seed = mnemonic_to_seed(
@@ -24,22 +25,20 @@ PRIVATE_KEY: PrivateKey = AugSchemeMPL.key_gen(seed)
 class TestPuzzles:
     def test_domain_ph(self) -> None:
         domain_name = "jack.xch"
-        correct_ph = bytes32.from_hexstr("9783e069ef2c4b80e93619ae914b273d6c7f06c6d0c9e1ce66230390f9063cd3")
+        correct_ph = bytes32.from_hexstr("343026ae53f5de0bf5d9e041aeda6d05cff53f23cb2494868e73bf7c330f4fdd")
         example_coin = Coin(REGISTRATION_FEE_MOD_HASH, correct_ph, 1)
         dp_class = DomainPuzzle(domain_name)
         dp_class.solution_args.append(1)
-        # Jack testing something, please remove
-        a = CoinSpend(
-            Coin(REGISTRATION_FEE_MOD_HASH, dp_class.complete_puzzle_hash(), 1),
-            dp_class.complete_puzzle().to_serialized_program(),
-            dp_class.generate_solution().to_serialized_program(),
-        )
-        a.additions()
         assert dp_class.complete_puzzle_hash() == correct_ph
         cs = dp_class.to_coin_spend(example_coin)
         assert cs.additions() == []
-        cs_json = ""
-        assert dp_class == DomainPuzzle.from_coin_spend(CoinSpend.from_json_dict(cs_json))
+        cs_bytes = hexstr_to_bytes('69c71a85585f938c7b8a45a35d167bf022023a4605a42de0b2346e502f9992e5343026ae53f5de0bf5d9'
+                                   'e041aeda6d05cff53f23cb2494868e73bf7c330f4fdd0000000000000001ff02ffff01ff02ffff01ff02'
+                                   'ffff01ff04ffff04ff0cffff04ff05ff808080ffff04ffff04ff08ffff01ff018080ffff04ffff04ff0a'
+                                   'ffff04ffff0bff0b80ff808080ffff04ffff04ff0effff01ff018080ff8080808080ffff04ffff01ffff'
+                                   '4950ff3c34ff018080ffff04ffff018401e1853eff018080ffff04ffff01886a61636b2e786368ff0180'
+                                   '8001')
+        assert domain_name == DomainPuzzle.from_coin_spend(CoinSpend.from_bytes(cs_bytes)).domain_name
 
     def test_registration_fee(self) -> None:
         example_coin = Coin(DOMAIN_PH_MOD_HASH, REGISTRATION_FEE_MOD_HASH, 10000000001)
@@ -56,6 +55,8 @@ class TestPuzzles:
             reg_class.generate_solution().get_tree_hash().hex()
             == "0c281d6f403ea7101326ae78d6bc56203c5ef316e6cba08f84d9bf7fe59364dd"
         )
+        cs_bytes = hexstr_to_bytes("989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abe69c71a85585f938c7b8a45a35d167bf022023a4605a42de0b2346e502f9992e500000002540be401ff02ffff01ff02ffff01ff02ff3effff04ff02ffff04ff05ffff04ff0bffff04ff17ffff04ff2fffff04ff81bfffff04ff5fffff04ff82017fffff04ffff0bff2fff8202ff80ff8080808080808080808080ffff04ffff01ffffff3dff473fff02ff333effff04ff0101ffff02ff02ffff03ff05ffff01ff02ff36ffff04ff02ffff04ff0dffff04ffff0bff26ffff0bff2aff1280ffff0bff26ffff0bff26ffff0bff2aff3a80ff0980ffff0bff26ff0bffff0bff2aff8080808080ff8080808080ffff010b80ff0180ffff0bff26ffff0bff2aff1480ffff0bff26ffff0bff26ffff0bff2aff3a80ff0580ffff0bff26ffff02ff36ffff04ff02ffff04ff07ffff04ffff0bff2aff2a80ff8080808080ffff0bff2aff8080808080ff04ffff04ff28ffff04ff5fff808080ffff04ffff04ff10ffff04ffff0bff5fff8202ff80ff808080ffff04ffff04ff38ffff04ffff0bff81bfff8202ff80ff808080ffff04ffff04ff3cffff04ff8202ffff808080ffff04ffff04ff2cffff04ff0bffff04ff17ff80808080ffff04ffff04ff2cffff04ffff02ff2effff04ff02ffff04ff05ffff04ffff0bffff0101ff2f80ff8080808080ffff04ffff0101ffff04ffff04ff82017fff8080ff8080808080ff80808080808080ff018080ffff04ffff01a0989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abeffff04ffff01a0b0046b08ca25e28f947d1344b2ccc983be7fc8097a8f353cca43f2c54117a429ffff04ffff018502540be400ff0180808080ff886a61636b2e786368ffa03636363636363636363636363636363636363636363636363636363636363636ffa03737373737373737373737373737373737373737373737373737373737373737ffa03838383838383838383838383838383838383838383838383838383838383838ffa0393939393939393939393939393939393939393939393939393939393939393980")
+        assert domain_name == RegistrationFeePuzzle.from_coin_spend(CoinSpend.from_bytes(cs_bytes)).domain_name
 
     @pytest.mark.asyncio
     async def test_inner_puzzle(self) -> None:
@@ -83,8 +84,10 @@ class TestPuzzles:
         )
         assert (
             inner_puz_class.generate_solution().get_tree_hash().hex()
-            == "f46ffa082c9f3eee42d6d5ddf1d0e58ca1b13dc5fb008edbd432d4a0169ed45c"
+            == "9d224191f9152e1f888b6823bfa9e92f922bb8dd79a8ba604fc82958348947ff"
         )
+        cs_bytes = hexstr_to_bytes("989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abe3527124bc74c084f7860e5ce01936624717fae94426e8676b0fd53e2d4c71a4a0000000000000001ff02ffff01ff02ffff01ff02ffff01ff02ffff01ff02ffff03ff8205ffffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8205ffffff04ff8202ffff8080808080ff80808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff8205ffff80808080ff80808080808080ffff01ff01808080ff808080ffff01ff02ffff03ff82017fffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff81bfffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff8080808080ff80808080ffff04ffff04ff28ffff04ff81bfff808080ffff04ffff04ff2cffff04ffff0bff0bff81bf80ff808080ffff04ffff04ff38ffff04ffff0bff05ffff0bff0bff81bf8080ff808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff808080808080ffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ff80808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff80808080ff018080ff0180ffff04ffff01ffffff32ff473fffff0233ff3e04ffff01ff0102ffffff02ffff03ff05ffff01ff02ff26ffff04ff02ffff04ff0dffff04ffff0bff3affff0bff12ff3c80ffff0bff3affff0bff3affff0bff12ff2a80ff0980ffff0bff3aff0bffff0bff12ff8080808080ff8080808080ffff010b80ff0180ff02ff2effff04ff02ffff04ff05ffff04ff17ffff04ff2fffff04ff0bff80808080808080ffff0bff3affff0bff12ff2480ffff0bff3affff0bff3affff0bff12ff2a80ff0580ffff0bff3affff02ff26ffff04ff02ffff04ff07ffff04ffff0bff12ff1280ff8080808080ffff0bff12ff8080808080ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff3effff04ff02ffff04ff09ff80808080ffff02ff3effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080ffff04ffff01a069c71a85585f938c7b8a45a35d167bf022023a4605a42de0b2346e502f9992e5ff018080ffff04ffff01886a61636b2e786368ff018080ffff04ffff01a0e98fcf606e3f169ec6fea76d8ffe53bf44d9b59597c10aca0aa8a8c27a8a9f7dffff04ffff01b0a0b3dda0f015e2bc83b9b5383ec7e33e17d3602d56ed657713692237a836ce065cf9f12c0816e835daefa8f22696cfceffff04ffff01ffff6161ffff626280ff0180808080ffa0989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abeff01ff80ff8080")
+        assert domain_name == DomainInnerPuzzle.from_coin_spend(CoinSpend.from_bytes(cs_bytes)).domain_name
 
     @pytest.mark.asyncio
     @pytest.mark.xfail(reason="Not Completed")
@@ -92,28 +95,15 @@ class TestPuzzles:
         domain_name = "jack.xch"
         pub_key = PRIVATE_KEY.get_g1()
         m_data = [("a", "a"), ("b", "b")]
-        outer_puz_class = DomainInnerPuzzle(
+        inner_puz_class = DomainInnerPuzzle(
             domain_name,
             pub_key,
             m_data,  # type: ignore[arg-type]
         )
-        example_coin = Coin(DOMAIN_PH_MOD_HASH, outer_puz_class.complete_puzzle_hash(), 1)
-        outer_puz_class.generate_solution_args(renew=True)
-
-        with pytest.raises(ValueError):
-            await outer_puz_class.to_spend_bundle(AugSchemeMPL.key_gen(token_bytes(32)), example_coin)
-
-        sb = await outer_puz_class.to_spend_bundle(PRIVATE_KEY, example_coin)
-        cs = sb.coin_spends[0]
-        _, c_spend, _ = conditions_dict_for_solution(cs.puzzle_reveal, cs.solution, (1 << 32) - 1)
-        assert c_spend is not None  # mypy
-        r = created_outputs_for_conditions_dict(c_spend, example_coin.name())
-        pre_puzzle = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
-        assert (
-            r[0].puzzle_hash.hex()
-            == pre_puzzle.curry(*[pre_puzzle.get_tree_hash(), pub_key, m_data]).get_tree_hash().hex()
-        )
-        assert (
-            outer_puz_class.generate_solution().get_tree_hash().hex()
-            == "f46ffa082c9f3eee42d6d5ddf1d0e58ca1b13dc5fb008edbd432d4a0169ed45c"
-        )
+        example_coin = Coin(DOMAIN_PH_MOD_HASH, inner_puz_class.complete_puzzle_hash(), 1)
+        inner_puz_class.generate_solution_args(renew=True)
+        # Validate inner coin_spend.
+        cs_bytes = hexstr_to_bytes("989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abe3527124bc74c084f7860e5ce01936624717fae94426e8676b0fd53e2d4c71a4a0000000000000001ff02ffff01ff02ffff01ff02ffff01ff02ffff01ff02ffff03ff8205ffffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8205ffffff04ff8202ffff8080808080ff80808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff8205ffff80808080ff80808080808080ffff01ff01808080ff808080ffff01ff02ffff03ff82017fffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff81bfffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff8080808080ff80808080ffff04ffff04ff28ffff04ff81bfff808080ffff04ffff04ff2cffff04ffff0bff0bff81bf80ff808080ffff04ffff04ff38ffff04ffff0bff05ffff0bff0bff81bf8080ff808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff808080808080ffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ff80808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff80808080ff018080ff0180ffff04ffff01ffffff32ff473fffff0233ff3e04ffff01ff0102ffffff02ffff03ff05ffff01ff02ff26ffff04ff02ffff04ff0dffff04ffff0bff3affff0bff12ff3c80ffff0bff3affff0bff3affff0bff12ff2a80ff0980ffff0bff3aff0bffff0bff12ff8080808080ff8080808080ffff010b80ff0180ff02ff2effff04ff02ffff04ff05ffff04ff17ffff04ff2fffff04ff0bff80808080808080ffff0bff3affff0bff12ff2480ffff0bff3affff0bff3affff0bff12ff2a80ff0580ffff0bff3affff02ff26ffff04ff02ffff04ff07ffff04ffff0bff12ff1280ff8080808080ffff0bff12ff8080808080ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff3effff04ff02ffff04ff09ff80808080ffff02ff3effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080ffff04ffff01a069c71a85585f938c7b8a45a35d167bf022023a4605a42de0b2346e502f9992e5ff018080ffff04ffff01886a61636b2e786368ff018080ffff04ffff01a0e98fcf606e3f169ec6fea76d8ffe53bf44d9b59597c10aca0aa8a8c27a8a9f7dffff04ffff01b0a0b3dda0f015e2bc83b9b5383ec7e33e17d3602d56ed657713692237a836ce065cf9f12c0816e835daefa8f22696cfceffff04ffff01ffff6161ffff626280ff0180808080ffa0989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abeff01ff80ff8080")
+        assert domain_name == DomainInnerPuzzle.from_coin_spend(CoinSpend.from_bytes(cs_bytes)).domain_name
+        # Test outer puzzle
+        #outer_puz_class = DomainOuterPuzzle(DEFAULT_CONSTANTS.AGG_SIG_ME_ADDITIONAL_DATA, DEFAULT_CONSTANTS.MAX_BLOCK_COST_CLVM)

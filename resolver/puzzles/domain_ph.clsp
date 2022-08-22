@@ -1,4 +1,4 @@
-(mod (RELATIVE_EXPIRY_SECONDS DOMAIN_NAME amount)
+(mod (RELATIVE_EXPIRY_SECONDS DOMAIN_NAME)
     ; this puzzle does not really do a lot, however i thought it would be nice to be able to easily clean up the dust
 
     (include condition_codes.clvm)
@@ -6,8 +6,8 @@
     ; main
     (list
         (list ASSERT_SECONDS_RELATIVE RELATIVE_EXPIRY_SECONDS)
-        (list ASSERT_MY_AMOUNT amount)
+        (list ASSERT_MY_AMOUNT 1)
         (list CREATE_COIN_ANNOUNCEMENT (sha256 DOMAIN_NAME))
-        (list RESERVE_FEE amount )
+        (list RESERVE_FEE 1)
     )
 )

@@ -78,19 +78,23 @@ class BasePuzzle:
         except Exception:
             raise ValueError("Invalid CoinSpend")
         solution_args = program_to_list(coin_spend.solution.to_program())
-        base_puzzle, curried_args = coin_spend.puzzle_reveal.to_program().uncurry()
-        curried_args = program_to_list(curried_args)
-        if puzzle_type == PuzzleType.DOMAIN:
-            domain_name = curried_args[0].decode()
-        elif puzzle_type == PuzzleType.INNER:
-            domain_name = base_puzzle.uncurry()[1].as_python()[0].decode()
-        elif puzzle_type == PuzzleType.FEE:
-            domain_name = solution_args[0].decode()
-        elif puzzle_type == PuzzleType.OUTER:
-            raise NotImplementedError("Outer puzzle not implemented yet.")
+
+        if not puzzle_type == PuzzleType.FEE:
+            base_puzzle, curried_args = coin_spend.puzzle_reveal.uncurry()
+            curried_args = program_to_list(curried_args)
+            if puzzle_type == PuzzleType.DOMAIN:
+                domain_name = curried_args[0]
+            elif puzzle_type == PuzzleType.INNER:
+                domain_name = base_puzzle.uncurry()[1].as_python()[0]
+            elif puzzle_type == PuzzleType.OUTER:
+                raise NotImplementedError("Outer puzzle not implemented yet.")
+            else:
+                raise ValueError("Invalid Puzzle Type")
         else:
-            raise ValueError("Invalid Puzzle Type")
-        return cls(
+            base_puzzle = coin_spend.puzzle_reveal.to_program()
+            domain_name = solution_args[0]
+            curried_args = []
+        return BasePuzzle(
             puzzle_type=puzzle_type,
             raw_puzzle=base_puzzle,
             puzzle_mod=base_puzzle.get_tree_hash(),
@@ -98,7 +102,7 @@ class BasePuzzle:
             num_solution_args=len(solution_args),
             curry_args=curried_args,
             solution_args=solution_args,
-            domain_name=domain_name,
+            domain_name=domain_name.decode("utf-8"),
         )
 
     @property
