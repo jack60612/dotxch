@@ -28,7 +28,6 @@ class TestPuzzles:
         correct_ph = bytes32.from_hexstr("343026ae53f5de0bf5d9e041aeda6d05cff53f23cb2494868e73bf7c330f4fdd")
         example_coin = Coin(REGISTRATION_FEE_MOD_HASH, correct_ph, 1)
         dp_class = DomainPuzzle(domain_name)
-        dp_class.solution_args.append(1)
         assert dp_class.complete_puzzle_hash() == correct_ph
         cs = dp_class.to_coin_spend(example_coin)
         assert cs.additions() == []

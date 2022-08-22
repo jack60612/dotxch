@@ -127,8 +127,10 @@ class BasePuzzle:
     def generate_solution(self) -> Program:
         if not self.is_spendable_puzzle:
             raise ValueError("Puzzle is missing or has too many solution arguments.")
-        if len(self.solution_args) > 1:
+        if self.num_solution_args > 1:
             result: Program = Program.to(self.solution_args)
+        elif self.num_solution_args == 0:
+            result = Program.to(1) # Anything works here
         else:
             result = Program.to(self.solution_args[0])
         return result
