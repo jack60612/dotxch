@@ -130,7 +130,7 @@ class BasePuzzle:
         if self.num_solution_args > 1:
             result: Program = Program.to(self.solution_args)
         elif self.num_solution_args == 0:
-            result = Program.to(1) # Anything works here
+            result = Program.to(1)  # Anything works here
         else:
             result = Program.to(self.solution_args[0])
         return result
