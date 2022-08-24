@@ -20,9 +20,9 @@ def program_to_list(program: Program) -> List[Any]:
     This is a helper function to convert a Program to a list of arguments, which were taken from the curry args of a
     puzzle or directly from a puzzle solution. This function just converts bytes to the correct class.
     :param program:
-    :return:
+    :return: A list of program arguments, in python classes.
     """
-    n_list = []
+    n_list: List[Any] = []
     for item in program.as_python():
         if isinstance(item, bytes):
             if len(item) == 32:
@@ -30,7 +30,7 @@ def program_to_list(program: Program) -> List[Any]:
             elif len(item) == 48:  # public key
                 n_list.append(G1Element.from_bytes(item))
             # Now we convert the bool types
-            elif item.hex == "01":
+            elif item.hex() == "01":
                 n_list.append(True)
             elif item.hex() == "":  # what 80 gets converted to
                 n_list.append(False)
@@ -80,14 +80,12 @@ class BasePuzzle:
         solution_args = program_to_list(coin_spend.solution.to_program())
 
         if not puzzle_type == PuzzleType.FEE:
-            base_puzzle, curried_args = coin_spend.puzzle_reveal.uncurry()
-            curried_args = program_to_list(curried_args)
+            base_puzzle, raw_curried_args = coin_spend.puzzle_reveal.uncurry()
+            curried_args = program_to_list(raw_curried_args)
             if puzzle_type == PuzzleType.DOMAIN:
                 domain_name = curried_args[0]
             elif puzzle_type == PuzzleType.INNER:
                 domain_name = base_puzzle.uncurry()[1].as_python()[0]
-            elif puzzle_type == PuzzleType.OUTER:
-                raise NotImplementedError("Outer puzzle not implemented yet.")
             else:
                 raise ValueError("Invalid Puzzle Type")
         else:
