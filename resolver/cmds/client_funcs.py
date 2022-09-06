@@ -22,7 +22,7 @@ from chia.wallet.transaction_record import TransactionRecord
 from resolver.drivers.puzzle_class import validate_initial_spend
 from resolver.drivers.puzzle_drivers import DomainPuzzle, DomainInnerPuzzle, DomainOuterPuzzle
 from resolver.drivers.domain_info import DomainInfo
-from resolver.puzzles.domain_constants import REGISTRATION_LENGTH
+from resolver.puzzles.domain_constants import REGISTRATION_LENGTH, MAX_REGISTRATION_GAP
 
 
 class NodeClient:
@@ -128,16 +128,19 @@ class NodeClient:
         for first_domain_cr in launcher_children_list:
             expected_height: uint32 = first_domain_cr.confirmed_block_index  # ephemeral so should match
             creation_timestamp: uint64 = first_domain_cr.timestamp
-            latest_renewal_timestamp: uint64 = max(
+            renewal_timestamps: List[uint64] = [
                 v[1] for v in launcher_ids_heights_and_ts[first_domain_cr.coin.parent_coin_info]
-            )
+            ]
+            latest_renewal_timestamp: uint64 = max(renewal_timestamps)
 
-            # validate that height and timestamp match expected values.
+            # validate that height and timestamp match expected values
             if (expected_height, creation_timestamp) not in launcher_ids_heights_and_ts[
                 first_domain_cr.coin.parent_coin_info
             ]:
                 continue
-            # we now take that first coin and get the outputs that it created when it got spent.
+            # now we check for gaps in the height, and if there are any, we skip this domain record.
+            if not self._validate_renewal_times(renewal_timestamps):
+                continue
             first_domain_spend: Optional[CoinSpend] = await self.client.get_puzzle_and_solution(
                 first_domain_cr.name, expected_height
             )
@@ -157,6 +160,17 @@ class NodeClient:
                 except ValueError:  # if it is not a real spend we just ignore it.
                     pass
         return first_domain_spends
+
+    @staticmethod
+    def _validate_renewal_times(renewal_timestamps: List[uint64]) -> bool:
+        # sort timestamps in any order.
+        renewal_timestamps.sort()
+        # now we check if the timestamps are not too far apart.
+        cur_timestamp: uint64 = renewal_timestamps[0]
+        for timestamp in renewal_timestamps:
+            if timestamp - cur_timestamp > MAX_REGISTRATION_GAP:
+                return False
+        return True
 
     async def resolve_domain(self, domain_record: DomainInfo) -> DomainInfo:
         """

@@ -150,6 +150,7 @@ class DomainInnerPuzzle(BasePuzzle):
         new_pubkey: Optional[Union[G1Element, bool]] = None,
         new_metadata: Optional[Union[List[Tuple[str, str]], bool]] = None,
         renew: bool = False,
+        coin: Optional[Coin] = None,
     ) -> None:
         # Args are: Renew, new_metadata, new_pubkey
         if new_pubkey is not None:
@@ -164,6 +165,8 @@ class DomainInnerPuzzle(BasePuzzle):
             sol_args = [0, new_metadata, 0]
         else:
             raise ValueError("No arguments provided")
+        if coin is not None:
+            sol_args = [coin.parent_coin_info] + sol_args
         self.solution_args = sol_args  # Override solution args
 
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
@@ -213,7 +216,7 @@ class DomainOuterPuzzle(BasePuzzle):
     ) -> "DomainOuterPuzzle":  # type: ignore
         sig_additional_data, max_block_cost = const_tuple
         try:
-            coin_spend.additions()
+            new_coin: Coin = coin_spend.additions()[0]
         except Exception:
             raise ValueError("Invalid CoinSpend")
         # first we receive and validate the curried arguments.
@@ -222,19 +225,23 @@ class DomainOuterPuzzle(BasePuzzle):
             raise ValueError("Incorrect Puzzle Driver")
         launcher_id = bytes32(Program(curried_args.pair[0].pair[1]).as_python()[1])
         # uncurry args from inner puzzle.
-        base_inner_puzzle, inner_curry_args = Program(curried_args.pair[1].pair[0]).uncurry()
+        inner_puzzle = Program(curried_args.pair[1].pair[0])
+        base_inner_puzzle, raw_inner_curry_args = inner_puzzle.uncurry()
         domain_name = base_inner_puzzle.uncurry()[1].as_python()[0].decode("utf-8")  # extract domain from domain wrap.
-        inner_curry_args = program_to_list(inner_curry_args)
+        # now we extract the curried args from the inner puzzle.
+        inner_curry_args = program_to_list(raw_inner_curry_args)
         pub_key = inner_curry_args[1]
         metadata = inner_curry_args[2]
-        # now we replace the curry args with any args that changed.
+        # we now process the solution args.
         solution_program = coin_spend.solution.to_program()
-        lineage_proof = program_to_lineage_proof(Program.to(solution_program.pair[0]))
         # first we select the inner sol, then we convert it into a list.
         _, _, sol_metadata, sol_pub_key = program_to_list(Program.to(solution_program.pair[1].pair[1].pair[0]))
+        # now we replace the curried data with the data from the solution.
         pub_key = sol_pub_key if sol_pub_key else pub_key
         metadata = sol_metadata if sol_metadata else metadata
         inner_puzzle_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
+        # create a new lineage proof object.
+        lineage_proof: LineageProof = LineageProof(new_coin.name(), inner_puzzle.get_tree_hash(), new_coin.amount)
         return cls(sig_additional_data, max_block_cost, launcher_id, lineage_proof, inner_puzzle_class)
 
     @staticmethod
@@ -258,9 +265,7 @@ class DomainOuterPuzzle(BasePuzzle):
         # this is the singleton to domain singleton spend.
         singleton_spend_bundle = SpendBundle([singleton_spend], G2Element())
         # create args for the inner puzzle renewal / creation spend.
-        inner_puzzle.generate_solution_args(renew=True)  # generate inner puzzle solution args for creation
-        if inner_puzzle.solution_args[0] != domain_coin.parent_coin_info:  # manually add coin parent id first
-            inner_puzzle.solution_args = [domain_coin.parent_coin_info] + inner_puzzle.solution_args
+        inner_puzzle.generate_solution_args(renew=True, coin=domain_coin)
         # now we create the domain full solution, coin spend & then a signed spend bundle.
         domain_solution = solution_for_singleton(
             lineage_proof, uint64(1), inner_puzzle.generate_solution()
@@ -304,7 +309,7 @@ class DomainOuterPuzzle(BasePuzzle):
         new_metadata: Optional[List[Tuple[str, str]]] = None,
     ) -> Tuple[List[Announcement], List[Dict[str, Any]], SpendBundle]:
         # first we set inner puzzle to renew mode.
-        self.domain_puzzle.generate_solution_args(renew=True, new_metadata=new_metadata)
+        self.domain_puzzle.generate_solution_args(renew=True, new_metadata=new_metadata, coin=domain_singleton)
         # now we generate a singleton renewal spend bundle.
         singleton_sb = await self.to_spend_bundle(private_key, domain_singleton)
         # now we generate the fee spend bundle.
@@ -332,7 +337,7 @@ class DomainOuterPuzzle(BasePuzzle):
 
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
         if self.is_spendable_puzzle:
-            self.solution_args = self.solution_args[0:2]  # regen args.
+            self.solution_args = [self.solution_args[0]]  # regen args.
         self.solution_args.append(coin.amount)  # add coin amount and inner solution args.
         self.solution_args.append(self.domain_puzzle.generate_solution())
         return super().to_coin_spend(coin)
