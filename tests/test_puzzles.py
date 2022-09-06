@@ -126,15 +126,15 @@ class TestPuzzles:
             example_coin,
         )
         # validate announcements
-        assert puzzle_assertions == {
+        assert puzzle_assertions == [
             Announcement(
                 REGISTRATION_FEE_MOD_HASH,
-                bytes(std_hash(bytes(domain_name.encode() + spend_bundle.coin_spends[1].coin.name()))),
+                bytes(std_hash(bytes(domain_name.encode() + spend_bundle.coin_spends[1].coin.parent_coin_info))),
             )
-        }
-        assert coin_assertions == {
+        ]
+        assert coin_assertions == [
             Announcement(spend_bundle.coin_spends[0].coin.name(), spend_bundle.coin_spends[0].solution.get_tree_hash())
-        }
+        ]
         # check spend bundle
         non_eph_adds = spend_bundle.not_ephemeral_additions()
         assert len(non_eph_adds) == 3

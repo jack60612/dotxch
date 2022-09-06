@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Tuple, Union, Set
+from typing import List, Optional, Tuple, Union, Set, Dict, Any
 
 from blspy import G1Element, G2Element, PrivateKey
 from chia.types.announcement import Announcement
@@ -20,7 +20,6 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
     puzzle_for_singleton,
 )
 from chia.wallet.sign_coin_spends import sign_coin_spends
-from chia.wallet.util.wallet_types import AmountWithPuzzlehash
 
 from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType, program_to_list
 from resolver.puzzles.puzzles import (
@@ -209,7 +208,9 @@ class DomainOuterPuzzle(BasePuzzle):
         )
 
     @classmethod
-    def from_coin_spend(cls, coin_spend: CoinSpend, const_tuple: Tuple[bytes, int]) -> "DomainOuterPuzzle":
+    def from_coin_spend(
+        cls, coin_spend: CoinSpend, const_tuple: Tuple[bytes, int]
+    ) -> "DomainOuterPuzzle":  # type: ignore
         sig_additional_data, max_block_cost = const_tuple
         try:
             coin_spend.additions()
@@ -219,8 +220,9 @@ class DomainOuterPuzzle(BasePuzzle):
         base_puzzle, curried_args = coin_spend.puzzle_reveal.uncurry()
         if base_puzzle.get_tree_hash() != SINGLETON_MOD_HASH:
             raise ValueError("Incorrect Puzzle Driver")
-        launcher_id = bytes32(curried_args.pair[0].as_python()[1])
-        base_inner_puzzle, inner_curry_args = curried_args.pair[1].pair[0].uncurry()  # uncurry args from inner puzzle.
+        launcher_id = bytes32(Program(curried_args.pair[0].pair[1]).as_python()[1])
+        # uncurry args from inner puzzle.
+        base_inner_puzzle, inner_curry_args = Program(curried_args.pair[1].pair[0]).uncurry()
         domain_name = base_inner_puzzle.uncurry()[1].as_python()[0].decode("utf-8")  # extract domain from domain wrap.
         inner_curry_args = program_to_list(inner_curry_args)
         pub_key = inner_curry_args[1]
@@ -242,7 +244,7 @@ class DomainOuterPuzzle(BasePuzzle):
         private_key: PrivateKey,
         inner_puzzle: DomainInnerPuzzle,
         base_coin: Coin,
-    ) -> Tuple[Set[Announcement], Set[Announcement], List[AmountWithPuzzlehash], SpendBundle]:
+    ) -> Tuple[List[Announcement], List[Announcement], List[Dict[str, Any]], SpendBundle]:
         if not base_coin.amount >= 10000000002:
             # 10000000001 is for the fee ph, and 1 is for the singleton.
             raise ValueError("Base coin must be at least 1000000002 mojo's")
@@ -277,18 +279,18 @@ class DomainOuterPuzzle(BasePuzzle):
         fee_coin = Coin(base_coin.name(), REGISTRATION_FEE_MOD_HASH, 10000000001)
         fee_spend_bundle = await reg_fee_puzzle.to_spend_bundle(fee_coin)
         # for the launcher puzzle
-        coin_assertions = {Announcement(singleton_coin.name(), singleton_spend.solution.get_tree_hash())}
+        coin_assertions = [Announcement(singleton_coin.name(), singleton_spend.solution.get_tree_hash())]
         # for the registration_fee puzzle
-        puzzle_assertions = {
+        puzzle_assertions = [
             Announcement(
                 REGISTRATION_FEE_MOD_HASH,
-                bytes(std_hash(bytes(inner_puzzle.domain_name.encode() + domain_cs.coin.name()))),
+                bytes(std_hash(inner_puzzle.domain_name.encode() + domain_cs.coin.parent_coin_info)),
             )
-        }
+        ]
         # fee ph, 1 for singleton
         primaries = [
-            AmountWithPuzzlehash(amount=uint64(10000000001), puzzlehash=REGISTRATION_FEE_MOD_HASH),
-            AmountWithPuzzlehash(amount=uint64(1), puzzlehash=SINGLETON_LAUNCHER_HASH),
+            dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH),
+            dict(amount=uint64(1), puzzle_hash=SINGLETON_LAUNCHER_HASH),
         ]
         # add the bundles together to get the final bundle.
         spend_bundle = SpendBundle.aggregate([singleton_spend_bundle, domain_spend_bundle, fee_spend_bundle])
@@ -300,7 +302,7 @@ class DomainOuterPuzzle(BasePuzzle):
         domain_singleton: Coin,
         fee_coin: Coin,
         new_metadata: Optional[List[Tuple[str, str]]] = None,
-    ) -> Tuple[Set[Announcement], List[AmountWithPuzzlehash], SpendBundle]:
+    ) -> Tuple[Set[Announcement], List[Dict[str, Any]], SpendBundle]:
         # first we set inner puzzle to renew mode.
         self.domain_puzzle.generate_solution_args(renew=True, new_metadata=new_metadata)
         # now we generate a singleton renewal spend bundle.
@@ -324,7 +326,7 @@ class DomainOuterPuzzle(BasePuzzle):
             )
         }
         # fee ph, 1 for singleton
-        primaries = [AmountWithPuzzlehash(amount=uint64(10000000001), puzzlehash=REGISTRATION_FEE_MOD_HASH)]
+        primaries = [dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]  # type: ignore
         spend_bundle = SpendBundle.aggregate([singleton_sb, fee_sb])
         return puzzle_assertions, primaries, spend_bundle
 

@@ -2,10 +2,12 @@ from enum import Enum
 from typing import Any, List, Optional
 
 from blspy import G1Element
-from chia.types.blockchain_format.program import Program
+from chia.types.blockchain_format.program import Program, INFINITE_COST
 from chia.types.blockchain_format.sized_bytes import bytes32
+from chia.types.blockchain_format.coin import Coin
 from chia.types.coin_spend import CoinSpend
-from chia_rs import Coin
+from chia.types.condition_opcodes import ConditionOpcode
+from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 
 
 class PuzzleType(Enum):
@@ -39,6 +41,24 @@ def program_to_list(program: Program) -> List[Any]:
         else:
             n_list.append(item)
     return n_list
+
+
+def validate_initial_spend(coin_spend: Optional[CoinSpend]) -> Optional[bytes32]:
+    """
+    This function validates that the initial spend is valid & returns the launcher id.
+    :param coin_spend: CoinSpend object that created domain coin.
+    :return: LauncherID if valid, None if invalid.
+    """
+    if coin_spend is not None and coin_spend.coin.puzzle_hash == REGISTRATION_FEE_MOD_HASH:
+        _, result = coin_spend.puzzle_reveal.run_with_cost(INFINITE_COST, coin_spend.solution)
+        for condition in result.as_python():
+            if condition[0] == ConditionOpcode.CREATE_COIN and len(condition) >= 4:
+                # If only 3 elements (opcode + 2 args), there is no memo, this is ph, amount
+                if type(condition[3]) != list:
+                    # If it's not a list, it's not the correct format
+                    continue
+                return bytes32(condition[3][0])
+    return None
 
 
 class BasePuzzle:
