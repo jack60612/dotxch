@@ -302,7 +302,7 @@ class DomainOuterPuzzle(BasePuzzle):
         domain_singleton: Coin,
         fee_coin: Coin,
         new_metadata: Optional[List[Tuple[str, str]]] = None,
-    ) -> Tuple[Set[Announcement], List[Dict[str, Any]], SpendBundle]:
+    ) -> Tuple[List[Announcement], List[Dict[str, Any]], SpendBundle]:
         # first we set inner puzzle to renew mode.
         self.domain_puzzle.generate_solution_args(renew=True, new_metadata=new_metadata)
         # now we generate a singleton renewal spend bundle.
@@ -319,12 +319,12 @@ class DomainOuterPuzzle(BasePuzzle):
         fee_sb = await reg_fee_puzzle.to_spend_bundle(fee_coin)
         if self.lineage_proof.parent_name is None:
             raise ValueError("Cannot renew a domain that has never had an initial spend.")
-        puzzle_assertions = {
+        puzzle_assertions = [
             Announcement(
                 REGISTRATION_FEE_MOD_HASH,
                 bytes(std_hash(bytes(self.domain_name.encode() + self.lineage_proof.parent_name))),
             )
-        }
+        ]
         # fee ph, 1 for singleton
         primaries = [dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]  # type: ignore
         spend_bundle = SpendBundle.aggregate([singleton_sb, fee_sb])

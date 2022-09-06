@@ -13,3 +13,4 @@ REGISTRATION_FEE_ADDRESS = bytes32.from_hexstr(
 )  # TODO:  (PLACEHOLDER) Change later.
 REGISTRATION_LENGTH = year  # 1 year registration length
 GRACE_PERIOD = month  # 1 month grace period
+MAX_REGISTRATION_GAP = REGISTRATION_LENGTH + GRACE_PERIOD  # 1 year + 1 month
