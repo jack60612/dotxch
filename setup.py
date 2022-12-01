@@ -1,7 +1,7 @@
 from setuptools import setup
 
 dependencies = [
-    "chia-blockchain==1.5.0",
+    "chia-blockchain==1.6.1",
 ]
 
 dev_dependencies = [

@@ -1,28 +1,27 @@
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from blspy import G2Element, PrivateKey
-
 from chia.consensus.block_record import BlockRecord
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
-from chia.rpc.wallet_rpc_client import WalletRpcClient
 from chia.rpc.full_node_rpc_client import FullNodeRpcClient
-from chia.types.blockchain_format.sized_bytes import bytes32
+from chia.rpc.wallet_rpc_client import WalletRpcClient
 from chia.types.blockchain_format.coin import Coin
+from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_record import CoinRecord
 from chia.types.coin_spend import CoinSpend
 from chia.types.spend_bundle import SpendBundle
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.config import load_config
 from chia.util.default_root import DEFAULT_ROOT_PATH
-from chia.util.ints import uint16, uint64, uint32
+from chia.util.ints import uint16, uint32, uint64
 from chia.wallet.derive_keys import master_sk_to_farmer_sk
 from chia.wallet.transaction_record import TransactionRecord
 
-from resolver.drivers.puzzle_class import validate_initial_spend
-from resolver.drivers.puzzle_drivers import DomainPuzzle, DomainInnerPuzzle, DomainOuterPuzzle
 from resolver.drivers.domain_info import DomainInfo
-from resolver.puzzles.domain_constants import REGISTRATION_LENGTH, MAX_REGISTRATION_GAP
+from resolver.drivers.puzzle_class import validate_initial_spend
+from resolver.drivers.puzzle_drivers import DomainInnerPuzzle, DomainOuterPuzzle, DomainPuzzle
+from resolver.puzzles.domain_constants import MAX_REGISTRATION_GAP, REGISTRATION_LENGTH
 
 
 class NodeClient:
@@ -122,23 +121,20 @@ class NodeClient:
 
         # now we get the children of the launcher coins, or the 1st domain singletons.
         launcher_children_list: List[CoinRecord] = await self.client.get_coin_records_by_parent_ids(
-            list(launcher_ids_heights_and_ts.keys())
+            list(launcher_ids_heights_and_ts.keys())  # launcher_ids
         )
         first_domain_spends: List[DomainInfo] = []
         for first_domain_cr in launcher_children_list:
+            launcher_id_record = launcher_ids_heights_and_ts[first_domain_cr.coin.parent_coin_info]  # height, timestamp
             expected_height: uint32 = first_domain_cr.confirmed_block_index  # ephemeral so should match
             creation_timestamp: uint64 = first_domain_cr.timestamp
-            renewal_timestamps: List[uint64] = [
-                v[1] for v in launcher_ids_heights_and_ts[first_domain_cr.coin.parent_coin_info]
-            ]
+            renewal_timestamps: List[uint64] = [v[1] for v in launcher_id_record]  # list of timestamps
             latest_renewal_timestamp: uint64 = max(renewal_timestamps)
 
-            # validate that height and timestamp match expected values
-            if (expected_height, creation_timestamp) not in launcher_ids_heights_and_ts[
-                first_domain_cr.coin.parent_coin_info
-            ]:
+            # validate that height and timestamp match expected values and were previously identified.
+            if (expected_height, creation_timestamp) not in launcher_id_record:
                 continue
-            # now we check for gaps in the height, and if there are any, we skip this domain record.
+            # now we check for gaps in the height (expired), and if there are any, we skip this domain record.
             if not self._validate_renewal_times(renewal_timestamps):
                 continue
             first_domain_spend: Optional[CoinSpend] = await self.client.get_puzzle_and_solution(
@@ -218,9 +214,8 @@ class NodeClient:
         assert latest_timestamp is not None  # tx always has a timestamp
         # we now filter out expired domains
         for domain_record in domain_records:
-            if include_grace_period:
-                if domain_record.in_grace_period(latest_timestamp):
-                    continue
+            if include_grace_period and domain_record.in_grace_period(latest_timestamp):
+                continue
             if domain_record.is_expired(latest_timestamp):
                 domain_records.remove(domain_record)
         domains_to_resolve: Optional[DomainInfo] = None
@@ -347,7 +342,7 @@ class WalletClient:
         inner_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
         # now we find a coin to use.
         removals: List[Coin] = await self.client.select_coins(
-            fee + 10000000002, wallet_id, min_coin_amount=uint64(fee + 10000000002)
+            amount=fee + 10000000002, wallet_id=wallet_id, min_coin_amount=uint64(fee + 10000000002)
         )
         if len(removals) > 1:
             raise ValueError("Too many coins selected, please condense the coins in your wallet.")
