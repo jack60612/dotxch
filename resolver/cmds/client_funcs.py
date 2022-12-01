@@ -373,3 +373,68 @@ class WalletClient:
         final_sb = SpendBundle.aggregate([spend_bundle, tx.spend_bundle])
         await self.client.push_tx(final_sb)
         return tx, final_sb
+
+    async def renew_domain(
+        self,
+        wallet_id: int,
+        domain_name: str,
+        fee: uint64,
+        new_metadata: Optional[List[Tuple[str, str]]] = None,
+        launcher_id: Optional[bytes32] = None,
+    ) -> Optional[Tuple[TransactionRecord, SpendBundle]]:
+        """
+        This function creates a domain name and returns the spend bundle that would create it.
+        If a non expired domain name already exists, it will return None, unless skip_existing_check is True.
+        :param launcher_id: the specific launcher_id to use.
+        :param fee: transaction fee
+        :param wallet_id: the id of the wallet
+        :param domain_name: the domain_name to create
+        :param new_metadata: a list of tuples of metadata to add to the domain name.
+        :return: SpendBundle if successful, None otherwise.
+        """
+        if self.client is None:
+            raise ValueError("Not Connected to a Wallet.")
+        if self.node_client is None:
+            raise ValueError("Not Connected to a Node.")
+        # we first find the domain.
+        if launcher_id is not None:
+            l_id_list = [launcher_id]
+        else:
+            l_id_list = None
+        all_d_records = await self.node_client.discover_all_domains(domain_name, l_id_list)
+        # override if launcher id is expired.
+        if launcher_id is None:
+            cur_record: DomainInfo = await self.node_client.filter_domains(all_d_records)
+        else:
+            cur_record = all_d_records[0]
+        if cur_record is None:  # Domain already exists
+            return None
+        # now that we have the domain, we resolve it & get the inner puzzle.
+        cur_record = await self.node_client.resolve_domain(cur_record)
+        assert self.farmer_private_key is not None
+        private_key = self.farmer_private_key
+        outer_class: DomainOuterPuzzle = cur_record.domain_class
+        latest_coin: Coin = cur_record.full_spend.additions()[0]  # only 1 coin is ever created.
+        # now we find a coin to use.
+        removals: List[Coin] = await self.client.select_coins(
+            fee + 10000000001, wallet_id, min_coin_amount=uint64(fee + 10000000001)
+        )
+        if len(removals) > 1:
+            raise ValueError("Too many coins selected, please condense the coins in your wallet.")
+        assert removals[0].amount >= fee + 10000000001
+        # now we get the args to create a spend bundle.
+        (puzzle_assertions, primaries, spend_bundle) = await outer_class.renew_domain(
+            private_key, latest_coin, removals[0], new_metadata
+        )
+        # now we create a transaction.
+        tx: TransactionRecord = await self.client.create_signed_transaction(
+            additions=primaries,
+            coins=removals,
+            fee=fee,
+            puzzle_announcements=puzzle_assertions,
+        )
+        assert tx.spend_bundle is not None  # should never be none.
+        # now we aggregate the spend bundles, and push the transaction.
+        final_sb = SpendBundle.aggregate([spend_bundle, tx.spend_bundle])
+        await self.client.push_tx(final_sb)
+        return tx, final_sb
