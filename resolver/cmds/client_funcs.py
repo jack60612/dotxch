@@ -404,10 +404,10 @@ class WalletClient:
         all_d_records = await self.node_client.discover_all_domains(domain_name, l_id_list)
         # override if launcher id is expired.
         if launcher_id is None:
-            cur_record: DomainInfo = await self.node_client.filter_domains(all_d_records)
+            cur_record: DomainInfo = await self.node_client.filter_domains(all_d_records, include_grace_period=True)
         else:
             cur_record = all_d_records[0]
-        if cur_record is None:  # Domain already exists
+        if cur_record is None:  # Non expired domain name already exists and we arnt overriding it.
             return None
         # now that we have the domain, we resolve it & get the inner puzzle.
         cur_record = await self.node_client.resolve_domain(cur_record)
@@ -415,13 +415,14 @@ class WalletClient:
         private_key = self.farmer_private_key
         outer_class: DomainOuterPuzzle = cur_record.domain_class
         latest_coin: Coin = cur_record.full_spend.additions()[0]  # only 1 coin is ever created.
+        total_amount = fee + 10000000001
         # now we find a coin to use.
         removals: List[Coin] = await self.client.select_coins(
-            fee + 10000000001, wallet_id, min_coin_amount=uint64(fee + 10000000001)
+            amount=total_amount, wallet_id=wallet_id, min_coin_amount=uint64(total_amount)
         )
         if len(removals) > 1:
-            raise ValueError("Too many coins selected, please condense the coins in your wallet.")
-        assert removals[0].amount >= fee + 10000000001
+            raise ValueError("Too many coins selected, please combine the coins in your wallet.")
+        assert removals[0].amount >= total_amount
         # now we get the args to create a spend bundle.
         (puzzle_assertions, primaries, spend_bundle) = await outer_class.renew_domain(
             private_key, latest_coin, removals[0], new_metadata
