@@ -338,6 +338,25 @@ class DomainOuterPuzzle(BasePuzzle):
         spend_bundle = SpendBundle.aggregate([singleton_sb, fee_sb])
         return puzzle_assertions, primaries, spend_bundle
 
+    async def update_metadata(
+        self,
+        private_key: PrivateKey,
+        domain_singleton: Coin,
+        new_metadata: List[Tuple[str, str]],
+    ) -> Tuple[List[Announcement], List[Dict[str, Any]], SpendBundle]:
+        # first we set inner puzzle to change metadata.
+        self.domain_puzzle.generate_solution_args(new_metadata=new_metadata, coin=domain_singleton)
+        # now we get a singleton metadata update spend bundle.
+        spend_bundle = await self.to_spend_bundle(private_key, domain_singleton)
+        puzzle_assertions = [
+            Announcement(
+                self.complete_puzzle_hash(),
+                bytes(std_hash(bytes(self.domain_name.encode() + self.lineage_proof.parent_name))),
+            )
+        ]
+        primaries = [dict(amount=uint64(0), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]  # type: ignore
+        return puzzle_assertions, primaries, spend_bundle
+
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
         if self.is_spendable_puzzle:
             self.solution_args = [self.solution_args[0]]  # regen args.
