@@ -40,6 +40,7 @@
             )
             (list ;; Updating Metadata
                 (list AGG_SIG_ME PUB_KEY (sha256tree1 new_metadata))
+                (list CREATE_PUZZLE_ANNOUNCEMENT  (sha256 DOMAIN_NAME parent_id)) ;; to make sure the fee cant be stolen
                 (list CREATE_COIN (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 new_metadata) (sha256tree1 PUB_KEY)) 1)
             )
         )
