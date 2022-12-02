@@ -255,26 +255,29 @@ class DomainOuterPuzzle(BasePuzzle):
         if not base_coin.amount >= 10000000002:
             # 10000000001 is for the fee ph, and 1 is for the singleton.
             raise ValueError("Base coin must be at least 1000000002 mojo's")
-        # first we set puzzle to renew mode.
+        # we create the singleton coin
         _, singleton_spend = launch_conditions_and_coinsol(
             base_coin, inner_puzzle.complete_puzzle(), inner_puzzle.cur_metadata, uint64(1)
         )
+        # we create the spend bundle for the singleton
+        singleton_spend_bundle = SpendBundle([singleton_spend], G2Element())
         singleton_coin = singleton_spend.coin
         domain_coin = singleton_spend.additions()[0]
         lineage_proof = lineage_proof_for_coinsol(singleton_spend)  # initial lineage proof
-        # this is the singleton to domain singleton spend.
-        singleton_spend_bundle = SpendBundle([singleton_spend], G2Element())
+
         # create args for the inner puzzle renewal / creation spend.
         inner_puzzle.generate_solution_args(renew=True, coin=domain_coin)
-        # now we create the domain full solution, coin spend & then a signed spend bundle.
+        # now we create the domain full solution, coin spend & then a signed spend bundle
+        # we wrap the coin spend in the singleton layer.
         domain_solution = solution_for_singleton(
             lineage_proof, uint64(1), inner_puzzle.generate_solution()
         ).to_serialized_program()
         outer_puzzle_reveal = puzzle_for_singleton(singleton_coin.name(), inner_puzzle.complete_puzzle())
         domain_cs = CoinSpend(domain_coin, outer_puzzle_reveal.to_serialized_program(), domain_solution)
         domain_spend_bundle = await sign_coin_spend(sig_additional_data, max_block_cost, domain_cs, private_key)
-        assert inner_puzzle.domain_name is not None
+
         # now we create the fee puzzle spend.
+        assert inner_puzzle.domain_name is not None
         reg_fee_puzzle = RegistrationFeePuzzle(
             inner_puzzle.domain_name,
             outer_puzzle_reveal.get_tree_hash(),

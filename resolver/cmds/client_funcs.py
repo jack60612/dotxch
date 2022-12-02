@@ -326,6 +326,9 @@ class WalletClient:
         :param metadata: a list of tuples of metadata to add to the domain name.
         :return: SpendBundle if successful, None otherwise.
         """
+        # temp hack to get a key
+        assert self.farmer_private_key is not None
+        pub_key = self.farmer_private_key.get_g1()
         if self.client is None:
             raise ValueError("Not Connected to a Wallet.")
         if self.node_client is None:
@@ -337,8 +340,6 @@ class WalletClient:
             if final_record is not None:  # Domain already exists
                 return None
         # now that we have checked, we can create the inner domain puzzle.
-        assert self.farmer_private_key is not None
-        pub_key = self.farmer_private_key.get_g1()
         inner_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
         # now we find a coin to use.
         removals: List[Coin] = await self.client.select_coins(
@@ -392,6 +393,10 @@ class WalletClient:
         :param new_metadata: a list of tuples of metadata to add to the domain name.
         :return: SpendBundle if successful, None otherwise.
         """
+        # temporary hack to get a key
+        assert self.farmer_private_key is not None
+        private_key = self.farmer_private_key
+
         if self.client is None:
             raise ValueError("Not Connected to a Wallet.")
         if self.node_client is None:
@@ -409,12 +414,12 @@ class WalletClient:
             cur_record = all_d_records[0]
         if cur_record is None:  # Non expired domain name already exists and we arnt overriding it.
             return None
-        # now that we have the domain, we resolve it & get the inner puzzle.
+
+        # now that we have the domain, we resolve it (get latest info) & get the inner puzzle.
         cur_record = await self.node_client.resolve_domain(cur_record)
-        assert self.farmer_private_key is not None
-        private_key = self.farmer_private_key
         outer_class: DomainOuterPuzzle = cur_record.domain_class
         latest_coin: Coin = cur_record.full_spend.additions()[0]  # only 1 coin is ever created.
+
         total_amount = fee + 10000000001
         # now we find a coin to use.
         removals: List[Coin] = await self.client.select_coins(
@@ -423,6 +428,7 @@ class WalletClient:
         if len(removals) > 1:
             raise ValueError("Too many coins selected, please combine the coins in your wallet.")
         assert removals[0].amount >= total_amount
+
         # now we get the args to create a spend bundle.
         (puzzle_assertions, primaries, spend_bundle) = await outer_class.renew_domain(
             private_key, latest_coin, removals[0], new_metadata
