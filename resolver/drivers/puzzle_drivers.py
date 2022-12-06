@@ -219,20 +219,24 @@ class DomainOuterPuzzle(BasePuzzle):
             new_coin: Coin = coin_spend.additions()[0]
         except Exception:
             raise ValueError("Invalid CoinSpend")
-        # first we receive and validate the curried arguments.
+        # first we receive and validate the puzzle and its first curried layer.
         base_puzzle, curried_args = coin_spend.puzzle_reveal.uncurry()
         if base_puzzle.get_tree_hash() != SINGLETON_MOD_HASH:
             raise ValueError("Incorrect Puzzle Driver")
-        launcher_id = bytes32(Program(curried_args.pair[0].pair[1]).as_python()[1])
-        # uncurry args from inner puzzle.
-        inner_puzzle = Program(curried_args.pair[1].pair[0])
-        base_inner_puzzle, raw_inner_curry_args = inner_puzzle.uncurry()
-        domain_name = base_inner_puzzle.uncurry()[1].as_python()[0].decode("utf-8")  # extract domain from domain wrap.
+
+        launcher_id = bytes32(curried_args.pair[0].pair[1].pair[0].atom)  # only outer uncurry.
+        # uncurry inner puzzle.
+        singleton_inner_puzzle = Program(curried_args.pair[1].pair[0])
+        singleton_base_inner_puzzle, raw_inner_curry_args = singleton_inner_puzzle.uncurry()
+        assert singleton_base_inner_puzzle.uncurry()[0] == INNER_SINGLETON_MOD  # sanity check
+        domain_name = singleton_base_inner_puzzle.uncurry()[1].pair[0].atom.decode("utf-8")  # domain from puzzle.
+
         # now we extract the curried args from the inner puzzle.
         inner_curry_args = program_to_list(raw_inner_curry_args)
         pub_key = inner_curry_args[1]
         metadata = inner_curry_args[2]
-        # we now process the solution args.
+
+        # we now process the coin_spend and get the potentially updated args.
         solution_program = coin_spend.solution.to_program()
         # first we select the inner sol, then we convert it into a list.
         _, _, sol_metadata, sol_pub_key = program_to_list(Program.to(solution_program.pair[1].pair[1].pair[0]))
@@ -241,7 +245,9 @@ class DomainOuterPuzzle(BasePuzzle):
         metadata = sol_metadata if sol_metadata else metadata
         inner_puzzle_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
         # create a new lineage proof object.
-        lineage_proof: LineageProof = LineageProof(new_coin.name(), inner_puzzle.get_tree_hash(), new_coin.amount)
+        lineage_proof: LineageProof = LineageProof(
+            new_coin.name(), singleton_inner_puzzle.get_tree_hash(), new_coin.amount
+        )
         return cls(sig_additional_data, max_block_cost, launcher_id, lineage_proof, inner_puzzle_class)
 
     @staticmethod
@@ -330,7 +336,7 @@ class DomainOuterPuzzle(BasePuzzle):
         puzzle_assertions = [
             Announcement(
                 REGISTRATION_FEE_MOD_HASH,
-                bytes(std_hash(bytes(self.domain_name.encode() + self.lineage_proof.parent_name))),
+                bytes(std_hash(self.domain_name.encode() + domain_singleton.parent_coin_info)),
             )
         ]
         # fee ph, 1 for singleton
@@ -351,7 +357,7 @@ class DomainOuterPuzzle(BasePuzzle):
         puzzle_assertions = [
             Announcement(
                 self.complete_puzzle_hash(),
-                bytes(std_hash(bytes(self.domain_name.encode() + self.lineage_proof.parent_name))),
+                bytes(std_hash(self.domain_name.encode() + domain_singleton.parent_coin_info)),
             )
         ]
         primaries = [dict(amount=uint64(0), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]  # type: ignore
