@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, List, Optional
 
@@ -61,6 +62,7 @@ def validate_initial_spend(coin_spend: Optional[CoinSpend]) -> Optional[bytes32]
     return None
 
 
+@dataclass
 class BasePuzzle:
     puzzle_type: PuzzleType
     raw_puzzle: Program
