@@ -455,7 +455,7 @@ class WalletClient:
         fee: uint64,
         new_metadata: List[Tuple[str, str]],
         ignore_validity: bool = False,
-    ) -> Optional[Tuple[TransactionRecord, SpendBundle]]:
+    ) -> Tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
         """
         This function updates the metadata of  a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless a launcher_id is provided.
@@ -477,7 +477,7 @@ class WalletClient:
         # we first find the domain.
         all_d_records = await self.node_client.discover_all_domains(domain_name, [launcher_id])
         if len(all_d_records) == 0:  # no records found
-            return None
+            return None, None
         # override if launcher id is expired.
         if not ignore_validity:
             cur_record: Optional[DomainInfo] = await self.node_client.filter_domains(
@@ -486,7 +486,7 @@ class WalletClient:
         else:
             cur_record = all_d_records[0]
         if cur_record is None:  # Non expired domain name already exists and we arnt overriding it.
-            return None
+            return None, None
         # now that we have the domain, we resolve it (get latest info) & get the inner puzzle.
         cur_record = await self.node_client.resolve_domain(cur_record)
         outer_class: DomainOuterPuzzle = cur_record.domain_class

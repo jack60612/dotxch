@@ -161,7 +161,9 @@ class BasePuzzle:
         if coin.puzzle_hash != self.complete_puzzle_hash():
             raise ValueError("The Coin's puzzle hash does not match the generated puzzle hash.")
         coin_spend = CoinSpend(
-            coin, SerializedProgram.from_program(self.complete_puzzle()), SerializedProgram.from_program(self.generate_solution())
+            coin,
+            SerializedProgram.from_program(self.complete_puzzle()),
+            SerializedProgram.from_program(self.generate_solution()),
         )
         try:
             compute_additions(coin_spend)

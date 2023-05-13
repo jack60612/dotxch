@@ -278,9 +278,9 @@ class DomainOuterPuzzle(BasePuzzle):
         inner_puzzle.generate_solution_args(renew=True, coin=domain_coin)
         # now we create the domain full solution, coin spend & then a signed spend bundle
         # we wrap the coin spend in the singleton layer.
-        domain_solution = SerializedProgram.from_program(solution_for_singleton(
-            lineage_proof, uint64(1), inner_puzzle.generate_solution()
-        ))
+        domain_solution = SerializedProgram.from_program(
+            solution_for_singleton(lineage_proof, uint64(1), inner_puzzle.generate_solution())
+        )
         outer_puzzle_reveal = puzzle_for_singleton(singleton_coin.name(), inner_puzzle.complete_puzzle())
         domain_cs = CoinSpend(domain_coin, SerializedProgram.from_program(outer_puzzle_reveal), domain_solution)
         domain_spend_bundle = await sign_coin_spend(sig_additional_data, max_block_cost, domain_cs, private_key)
@@ -343,7 +343,7 @@ class DomainOuterPuzzle(BasePuzzle):
             )
         ]
         # fee ph, 1 for singleton
-        primaries = [dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]  # type: ignore
+        primaries = [dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]
         spend_bundle = SpendBundle.aggregate([singleton_sb, fee_sb])
         return puzzle_assertions, primaries, spend_bundle
 
@@ -364,7 +364,7 @@ class DomainOuterPuzzle(BasePuzzle):
                 bytes(std_hash(self.domain_name.encode() + domain_singleton.parent_coin_info)),
             )
         ]
-        primaries = [dict(amount=uint64(0), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]  # type: ignore
+        primaries = [dict(amount=uint64(0), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]
         return puzzle_assertions, primaries, spend_bundle
 
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
