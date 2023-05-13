@@ -14,8 +14,7 @@ dev_dependencies = [
     "isort",
     "flake8",
     "mypy",
-    # TODO: black 22.1.0 requires click>=8, remove this pin after updating to click 8
-    "black==21.12b0",
+    "black",
     "aiohttp_cors",  # For blackd
     "ipython",  # For asyncio debugging
     "pyinstaller==5.0",

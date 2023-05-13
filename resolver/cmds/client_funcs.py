@@ -405,11 +405,13 @@ class WalletClient:
             raise ValueError("Not Connected to a Node.")
         # we first find the domain.
         all_d_records = await self.node_client.discover_all_domains(domain_name, [launcher_id])
-        if len(all_d_records) == 0: # no records found
+        if len(all_d_records) == 0:  # no records found
             return None
         # override if launcher id is expired.
         if not ignore_validity:
-            cur_record: Optional[DomainInfo] = await self.node_client.filter_domains(all_d_records, include_grace_period=True)
+            cur_record: Optional[DomainInfo] = await self.node_client.filter_domains(
+                all_d_records, include_grace_period=True
+            )
         else:
             cur_record = all_d_records[0]
         if cur_record is None:  # Non expired domain name already exists and we arnt overriding it.
@@ -474,11 +476,13 @@ class WalletClient:
             raise ValueError("Not Connected to a Node.")
         # we first find the domain.
         all_d_records = await self.node_client.discover_all_domains(domain_name, [launcher_id])
-        if len(all_d_records) == 0: # no records found
+        if len(all_d_records) == 0:  # no records found
             return None
         # override if launcher id is expired.
         if not ignore_validity:
-            cur_record: Optional[DomainInfo] = await self.node_client.filter_domains(all_d_records, include_grace_period=True)
+            cur_record: Optional[DomainInfo] = await self.node_client.filter_domains(
+                all_d_records, include_grace_period=True
+            )
         else:
             cur_record = all_d_records[0]
         if cur_record is None:  # Non expired domain name already exists and we arnt overriding it.
@@ -490,7 +494,10 @@ class WalletClient:
 
         # now we get the args to create a spend bundle.
         (puzzle_assertions, primaries, final_sb) = await outer_class.update_metadata(
-            private_key, latest_coin, new_metadata,)
+            private_key,
+            latest_coin,
+            new_metadata,
+        )
         tx: Optional[TransactionRecord] = None
         if fee > 0:
             # now we create a transaction.
