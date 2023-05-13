@@ -1,11 +1,12 @@
-from typing import List, Optional, Tuple, Union, Set, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from blspy import G1Element, G2Element, PrivateKey
 from chia.types.announcement import Announcement
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.program import Program
+from chia.types.blockchain_format.serialized_program import SerializedProgram
 from chia.types.blockchain_format.sized_bytes import bytes32
-from chia.types.coin_spend import CoinSpend
+from chia.types.coin_spend import CoinSpend, compute_additions
 from chia.types.spend_bundle import SpendBundle
 from chia.util.hash import std_hash
 from chia.util.ints import uint64
@@ -16,8 +17,8 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
     SINGLETON_MOD_HASH,
     launch_conditions_and_coinsol,
     lineage_proof_for_coinsol,
-    solution_for_singleton,
     puzzle_for_singleton,
+    solution_for_singleton,
 )
 from chia.wallet.sign_coin_spends import sign_coin_spends
 
@@ -216,7 +217,9 @@ class DomainOuterPuzzle(BasePuzzle):
     ) -> "DomainOuterPuzzle":  # type: ignore
         sig_additional_data, max_block_cost = const_tuple
         try:
-            new_coin: Coin = coin_spend.additions()[0]
+            new_coins: list[Coin] = compute_additions(coin_spend)
+            assert len(new_coins) == 1
+            new_coin: Coin = new_coins[0]
         except Exception:
             raise ValueError("Invalid CoinSpend")
         # first we receive and validate the puzzle and its first curried layer.
@@ -246,7 +249,7 @@ class DomainOuterPuzzle(BasePuzzle):
         inner_puzzle_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
         # create a new lineage proof object.
         lineage_proof: LineageProof = LineageProof(
-            new_coin.name(), singleton_inner_puzzle.get_tree_hash(), new_coin.amount
+            new_coin.name(), singleton_inner_puzzle.get_tree_hash(), uint64(new_coin.amount)
         )
         return cls(sig_additional_data, max_block_cost, launcher_id, lineage_proof, inner_puzzle_class)
 
@@ -268,18 +271,18 @@ class DomainOuterPuzzle(BasePuzzle):
         # we create the spend bundle for the singleton
         singleton_spend_bundle = SpendBundle([singleton_spend], G2Element())
         singleton_coin = singleton_spend.coin
-        domain_coin = singleton_spend.additions()[0]
+        domain_coin = compute_additions(singleton_spend)[0]
         lineage_proof = lineage_proof_for_coinsol(singleton_spend)  # initial lineage proof
 
         # create args for the inner puzzle renewal / creation spend.
         inner_puzzle.generate_solution_args(renew=True, coin=domain_coin)
         # now we create the domain full solution, coin spend & then a signed spend bundle
         # we wrap the coin spend in the singleton layer.
-        domain_solution = solution_for_singleton(
+        domain_solution = SerializedProgram.from_program(solution_for_singleton(
             lineage_proof, uint64(1), inner_puzzle.generate_solution()
-        ).to_serialized_program()
+        ))
         outer_puzzle_reveal = puzzle_for_singleton(singleton_coin.name(), inner_puzzle.complete_puzzle())
-        domain_cs = CoinSpend(domain_coin, outer_puzzle_reveal.to_serialized_program(), domain_solution)
+        domain_cs = CoinSpend(domain_coin, SerializedProgram.from_program(outer_puzzle_reveal), domain_solution)
         domain_spend_bundle = await sign_coin_spend(sig_additional_data, max_block_cost, domain_cs, private_key)
 
         # now we create the fee puzzle spend.
@@ -350,6 +353,7 @@ class DomainOuterPuzzle(BasePuzzle):
         domain_singleton: Coin,
         new_metadata: List[Tuple[str, str]],
     ) -> Tuple[List[Announcement], List[Dict[str, Any]], SpendBundle]:
+        assert self.domain_name is not None
         # first we set inner puzzle to change metadata.
         self.domain_puzzle.generate_solution_args(new_metadata=new_metadata, coin=domain_singleton)
         # now we get a singleton metadata update spend bundle.

@@ -1,7 +1,8 @@
 from setuptools import setup
 
 dependencies = [
-    "chia-blockchain==1.6.1",
+    "packaging",
+    "chia-blockchain==1.8.0",
 ]
 
 dev_dependencies = [
@@ -17,7 +18,7 @@ dev_dependencies = [
     "black",
     "aiohttp_cors",  # For blackd
     "ipython",  # For asyncio debugging
-    "pyinstaller==5.0",
+    "pyinstaller",
     "types-aiofiles",
     "types-click",
     "types-cryptography",
@@ -29,7 +30,6 @@ dev_dependencies = [
 
 setup(
     name="dotxch",
-    version="0.0.1",
     url="https://dotxch.io",
     license="Apache Licence",
     author="Jack Nelson",

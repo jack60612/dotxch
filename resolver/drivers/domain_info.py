@@ -4,8 +4,9 @@ from typing import Tuple
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
 from chia.util.ints import uint32, uint64
+
 from resolver.drivers.puzzle_drivers import DomainOuterPuzzle
-from resolver.puzzles.domain_constants import REGISTRATION_LENGTH, GRACE_PERIOD
+from resolver.puzzles.domain_constants import GRACE_PERIOD, REGISTRATION_LENGTH
 
 
 @dataclass(frozen=True)

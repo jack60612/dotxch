@@ -3,11 +3,13 @@ from enum import Enum
 from typing import Any, List, Optional
 
 from blspy import G1Element
-from chia.types.blockchain_format.program import Program, INFINITE_COST
-from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.blockchain_format.coin import Coin
-from chia.types.coin_spend import CoinSpend
+from chia.types.blockchain_format.program import INFINITE_COST, Program
+from chia.types.blockchain_format.serialized_program import SerializedProgram
+from chia.types.blockchain_format.sized_bytes import bytes32
+from chia.types.coin_spend import CoinSpend, compute_additions
 from chia.types.condition_opcodes import ConditionOpcode
+
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 
 
@@ -96,7 +98,7 @@ class BasePuzzle:
     @classmethod
     def from_coin_spend(cls, coin_spend: CoinSpend, puzzle_type: PuzzleType) -> "BasePuzzle":
         try:
-            coin_spend.additions()
+            compute_additions(coin_spend)
         except Exception:
             raise ValueError("Invalid CoinSpend")
         solution_args = program_to_list(coin_spend.solution.to_program())
@@ -159,10 +161,10 @@ class BasePuzzle:
         if coin.puzzle_hash != self.complete_puzzle_hash():
             raise ValueError("The Coin's puzzle hash does not match the generated puzzle hash.")
         coin_spend = CoinSpend(
-            coin, self.complete_puzzle().to_serialized_program(), self.generate_solution().to_serialized_program()
+            coin, SerializedProgram.from_program(self.complete_puzzle()), SerializedProgram.from_program(self.generate_solution())
         )
         try:
-            coin_spend.additions()
+            compute_additions(coin_spend)
         except Exception:
             raise ValueError("Invalid Puzzle or Puzzle Solutions")
         return coin_spend

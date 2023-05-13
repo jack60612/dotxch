@@ -9,7 +9,7 @@ from chia.rpc.wallet_rpc_client import WalletRpcClient
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_record import CoinRecord
-from chia.types.coin_spend import CoinSpend
+from chia.types.coin_spend import CoinSpend, compute_additions
 from chia.types.spend_bundle import SpendBundle
 from chia.util.byte_types import hexstr_to_bytes
 from chia.util.config import load_config
@@ -420,7 +420,7 @@ class WalletClient:
         # now that we have the domain, we resolve it (get latest info) & get the inner puzzle.
         cur_record = await self.node_client.resolve_domain(cur_record)
         outer_class: DomainOuterPuzzle = cur_record.domain_class
-        latest_coin: Coin = cur_record.full_spend.additions()[0]  # only 1 coin is ever created.
+        latest_coin: Coin = compute_additions(cur_record.full_spend)[0]  # only 1 coin is ever created.
 
         total_amount = fee + 10000000001
         # now we find a coin to use.
@@ -490,7 +490,7 @@ class WalletClient:
         # now that we have the domain, we resolve it (get latest info) & get the inner puzzle.
         cur_record = await self.node_client.resolve_domain(cur_record)
         outer_class: DomainOuterPuzzle = cur_record.domain_class
-        latest_coin: Coin = cur_record.full_spend.additions()[0]  # only 1 coin is ever created.
+        latest_coin: Coin = compute_additions(cur_record.full_spend)[0]  # only 1 coin is ever created.
 
         # now we get the args to create a spend bundle.
         (puzzle_assertions, primaries, final_sb) = await outer_class.update_metadata(
