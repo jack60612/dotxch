@@ -3,6 +3,7 @@ from setuptools import setup
 dependencies = [
     "packaging",
     "chia-blockchain==1.8.0",
+    "blspy",
 ]
 
 dev_dependencies = [
@@ -16,7 +17,6 @@ dev_dependencies = [
     "flake8",
     "mypy",
     "black",
-    "aiohttp_cors",  # For blackd
     "ipython",  # For asyncio debugging
     "pyinstaller",
     "types-aiofiles",

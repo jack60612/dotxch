@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional
 
 from blspy import G2Element, PrivateKey
 from chia.consensus.block_record import BlockRecord
@@ -19,15 +19,17 @@ from chia.wallet.derive_keys import master_sk_to_farmer_sk
 from chia.wallet.transaction_record import TransactionRecord
 
 from resolver.drivers.domain_info import DomainInfo
+from resolver.drivers.domain_inner_puzzle import DomainInnerPuzzle
+from resolver.drivers.domain_outer_puzzle import DomainOuterPuzzle
+from resolver.drivers.domain_puzzle import DomainPuzzle
 from resolver.drivers.puzzle_class import validate_initial_spend
-from resolver.drivers.puzzle_drivers import DomainInnerPuzzle, DomainOuterPuzzle, DomainPuzzle
 from resolver.puzzles.domain_constants import MAX_REGISTRATION_GAP, REGISTRATION_LENGTH
 
 
 class NodeClient:
     def __init__(
         self,
-        config: Optional[Dict[str, Any]] = None,
+        config: Optional[dict[str, Any]] = None,
         root_path: Path = DEFAULT_ROOT_PATH,
         rpc_port: Optional[uint16] = None,
     ) -> None:
@@ -54,7 +56,7 @@ class NodeClient:
             self.client = None
         return None
 
-    async def get_peak_and_last_tx(self) -> Tuple[BlockRecord, BlockRecord]:
+    async def get_peak_and_last_tx(self) -> tuple[BlockRecord, BlockRecord]:
         """
         This function returns the peak block and the last transaction block.
         If the peak block is a transaction block, it will return the peak block as both.
@@ -79,14 +81,14 @@ class NodeClient:
         raise ValueError("No transaction blocks found.")
 
     async def discover_all_domains(
-        self, domain_name: str, launcher_ids: Optional[List[bytes32]] = None
-    ) -> List[DomainInfo]:
+        self, domain_name: str, launcher_ids: Optional[list[bytes32]] = None
+    ) -> list[DomainInfo]:
         """
         This function finds all domains that match the given domain name.
         & it returns a list of domain spends, with the most up-to-date renewal times.
         :param domain_name: The domain name you would like to resolve
         :param launcher_ids: (Optional) Only search these launcher IDs
-        :return: List of unfiltered & unresolved DomainInfo Objects.
+        :return: list of unfiltered & unresolved DomainInfo Objects.
         """
         if self.client is None:
             raise ValueError("Not Connected to a Node.")
@@ -95,11 +97,11 @@ class NodeClient:
             raise ValueError("Node is not synced.")
         domain_ph = DomainPuzzle(domain_name).complete_puzzle_hash()
         # we get all coins for that ph.
-        coin_records: List[CoinRecord] = [
+        coin_records: list[CoinRecord] = [
             cr for cr in await self.client.get_coin_records_by_puzzle_hash(domain_ph) if cr.coin.amount == 1
         ]
 
-        launcher_ids_heights_and_ts: Dict[bytes32, List[Tuple[uint32, uint64]]] = {}
+        launcher_ids_heights_and_ts: dict[bytes32, list[tuple[uint32, uint64]]] = {}
         # {l_id: [(block_height, timestamp)]}
         # now we extract the launcher id's and renewal / creation heights from the coin spends.
         for cr in coin_records:
@@ -120,15 +122,15 @@ class NodeClient:
                     launcher_ids_heights_and_ts[l_id] = [(cr_height, cr_timestamp)]
 
         # now we get the children of the launcher coins, or the 1st domain singletons.
-        launcher_children_list: List[CoinRecord] = await self.client.get_coin_records_by_parent_ids(
+        launcher_children_list: list[CoinRecord] = await self.client.get_coin_records_by_parent_ids(
             list(launcher_ids_heights_and_ts.keys())  # launcher_ids
         )
-        first_domain_spends: List[DomainInfo] = []
+        first_domain_spends: list[DomainInfo] = []
         for first_domain_cr in launcher_children_list:
             launcher_id_record = launcher_ids_heights_and_ts[first_domain_cr.coin.parent_coin_info]  # height, timestamp
             expected_height: uint32 = first_domain_cr.confirmed_block_index  # ephemeral so should match
             creation_timestamp: uint64 = first_domain_cr.timestamp
-            renewal_timestamps: List[uint64] = [v[1] for v in launcher_id_record]  # list of timestamps
+            renewal_timestamps: list[uint64] = [v[1] for v in launcher_id_record]  # list of timestamps
             latest_renewal_timestamp: uint64 = max(renewal_timestamps)
 
             # validate that height and timestamp match expected values and were previously identified.
@@ -158,7 +160,7 @@ class NodeClient:
         return first_domain_spends
 
     @staticmethod
-    def _validate_renewal_times(renewal_timestamps: List[uint64]) -> bool:
+    def _validate_renewal_times(renewal_timestamps: list[uint64]) -> bool:
         # sort timestamps in any order.
         renewal_timestamps.sort()
         # now we check if the timestamps are not too far apart.
@@ -199,11 +201,11 @@ class NodeClient:
         )
 
     async def filter_domains(
-        self, domain_records: List[DomainInfo], include_grace_period: bool = False
+        self, domain_records: list[DomainInfo], include_grace_period: bool = False
     ) -> Optional[DomainInfo]:
         """
         This function filters out expired and or conflicting domains, and returns the final, unresolved domain.
-        :param domain_records: List of unresolved / unfiltered domain records of the same name.
+        :param domain_records: list of unresolved / unfiltered domain records of the same name.
         :param include_grace_period: should we include domains that are in their grace period.
         :return: The correct, domain record, if there is one.
         """
@@ -226,7 +228,7 @@ class NodeClient:
             # select the oldest block.
             lowest_block_height: uint32 = domain_records[0].creation_height
             # now we check if there are any other domains from that block
-            possible_records: List[DomainInfo] = []
+            possible_records: list[DomainInfo] = []
             for domain_record in domain_records:
                 if domain_record.creation_height == lowest_block_height:
                     possible_records.append(domain_record)
@@ -253,7 +255,7 @@ class NodeClient:
         domain_class = DomainPuzzle(domain_name)
         domain_ph = domain_class.complete_puzzle_hash()
         # we get all coins for that ph & convert those coins to coin spends.
-        coin_spends: List[CoinSpend] = [
+        coin_spends: list[CoinSpend] = [
             domain_class.to_coin_spend(cr.coin)
             for cr in await self.client.get_coin_records_by_puzzle_hash(domain_ph, False)
             if cr.coin.amount == 1 and cr.timestamp + REGISTRATION_LENGTH < latest_timestamp
@@ -269,7 +271,7 @@ class NodeClient:
 class WalletClient:
     def __init__(
         self,
-        config: Optional[Dict[str, Any]] = None,
+        config: Optional[dict[str, Any]] = None,
         root_path: Path = DEFAULT_ROOT_PATH,
         rpc_port: Optional[uint16] = None,
     ) -> None:
@@ -312,10 +314,10 @@ class WalletClient:
         self,
         wallet_id: int,
         domain_name: str,
-        metadata: List[Tuple[str, str]],
+        metadata: list[tuple[str, str]],
         fee: uint64,
         skip_existing_check: bool = False,
-    ) -> Optional[Tuple[TransactionRecord, SpendBundle]]:
+    ) -> Optional[tuple[TransactionRecord, SpendBundle]]:
         """
         This function creates a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless skip_existing_check is True.
@@ -342,7 +344,7 @@ class WalletClient:
         # now that we have checked, we can create the inner domain puzzle.
         inner_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
         # now we find a coin to use.
-        removals: List[Coin] = await self.client.select_coins(
+        removals: list[Coin] = await self.client.select_coins(
             amount=fee + 10000000002, wallet_id=wallet_id, min_coin_amount=uint64(fee + 10000000002)
         )
         if len(removals) > 1:
@@ -382,8 +384,8 @@ class WalletClient:
         fee: uint64,
         launcher_id: bytes32,
         ignore_validity: bool = False,
-        new_metadata: Optional[List[Tuple[str, str]]] = None,
-    ) -> Optional[Tuple[TransactionRecord, SpendBundle]]:
+        new_metadata: Optional[list[tuple[str, str]]] = None,
+    ) -> Optional[tuple[TransactionRecord, SpendBundle]]:
         """
         This function creates a renews a domainname and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless a launcher_id is provided.
@@ -424,7 +426,7 @@ class WalletClient:
 
         total_amount = fee + 10000000001
         # now we find a coin to use.
-        removals: List[Coin] = await self.client.select_coins(
+        removals: list[Coin] = await self.client.select_coins(
             amount=total_amount, wallet_id=wallet_id, min_coin_amount=uint64(total_amount)
         )
         if len(removals) > 1:
@@ -453,9 +455,9 @@ class WalletClient:
         domain_name: str,
         launcher_id: bytes32,
         fee: uint64,
-        new_metadata: List[Tuple[str, str]],
+        new_metadata: list[tuple[str, str]],
         ignore_validity: bool = False,
-    ) -> Tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
+    ) -> tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
         """
         This function updates the metadata of  a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless a launcher_id is provided.

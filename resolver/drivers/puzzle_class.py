@@ -1,14 +1,18 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, Optional
 
-from blspy import G1Element
+from blspy import G1Element, PrivateKey
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.program import INFINITE_COST, Program
 from chia.types.blockchain_format.serialized_program import SerializedProgram
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend, compute_additions
 from chia.types.condition_opcodes import ConditionOpcode
+from chia.types.spend_bundle import SpendBundle
+from chia.util.ints import uint64
+from chia.wallet.lineage_proof import LineageProof
+from chia.wallet.sign_coin_spends import sign_coin_spends
 
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 
@@ -20,14 +24,14 @@ class PuzzleType(Enum):
     OUTER = 3
 
 
-def program_to_list(program: Program) -> List[Any]:
+def program_to_list(program: Program) -> list[Any]:
     """
     This is a helper function to convert a Program to a list of arguments, which were taken from the curry args of a
     puzzle or directly from a puzzle solution. This function just converts bytes to the correct class.
     :param program:
     :return: A list of program arguments, in python classes.
     """
-    n_list: List[Any] = []
+    n_list: list[Any] = []
     for item in program.as_python():
         if isinstance(item, bytes):
             if len(item) == 32:
@@ -64,6 +68,32 @@ def validate_initial_spend(coin_spend: Optional[CoinSpend]) -> Optional[bytes32]
     return None
 
 
+async def sign_coin_spend(
+    agg_sig_me_additional_data: bytes, max_block_cost_clvm: int, coin_spend: CoinSpend, private_key: PrivateKey
+) -> SpendBundle:
+    async def priv_key(pk: G1Element) -> PrivateKey:
+        return private_key
+
+    return await sign_coin_spends(
+        [coin_spend],
+        priv_key,
+        agg_sig_me_additional_data,
+        max_block_cost_clvm,
+    )
+
+
+def program_to_lineage_proof(program: Program) -> LineageProof:
+    python_program = program_to_list(program)
+    parent_name: bytes32 = python_program[0]
+    inner_ph: Optional[bytes32] = None
+    if len(python_program) == 3:
+        inner_ph = python_program[1]
+        amount: uint64 = python_program[2]
+    else:
+        amount = python_program[1]
+    return LineageProof(parent_name, inner_ph, amount)
+
+
 @dataclass
 class BasePuzzle:
     puzzle_type: PuzzleType
@@ -71,8 +101,8 @@ class BasePuzzle:
     puzzle_mod: bytes32
     num_curry_args: int
     num_solution_args: int
-    solution_args: List[Any]
-    curry_args: List[Any]
+    solution_args: list[Any]
+    curry_args: list[Any]
     domain_name: Optional[str]
 
     def __init__(
@@ -82,8 +112,8 @@ class BasePuzzle:
         puzzle_mod: bytes32,
         num_curry_args: int,
         num_solution_args: int,
-        curry_args: Optional[List[Any]] = None,
-        solution_args: Optional[List[Any]] = None,
+        curry_args: Optional[list[Any]] = None,
+        solution_args: Optional[list[Any]] = None,
         domain_name: Optional[str] = None,
     ):
         self.puzzle_type: PuzzleType = puzzle_type
@@ -91,9 +121,9 @@ class BasePuzzle:
         self.raw_puzzle: Program = raw_puzzle
         self.puzzle_mod: bytes32 = puzzle_mod
         self.num_curry_args: int = num_curry_args
-        self.curry_args: List[Any] = curry_args if curry_args else []
+        self.curry_args: list[Any] = curry_args if curry_args else []
         self.num_solution_args: int = num_solution_args
-        self.solution_args: List[Any] = solution_args if solution_args else []
+        self.solution_args: list[Any] = solution_args if solution_args else []
 
     @classmethod
     def from_coin_spend(cls, coin_spend: CoinSpend, puzzle_type: PuzzleType) -> "BasePuzzle":

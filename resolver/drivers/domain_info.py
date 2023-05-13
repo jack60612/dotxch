@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import Tuple
 
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
 from chia.util.ints import uint32, uint64
 
-from resolver.drivers.puzzle_drivers import DomainOuterPuzzle
+from resolver.drivers.domain_outer_puzzle import DomainOuterPuzzle
 from resolver.puzzles.domain_constants import GRACE_PERIOD, REGISTRATION_LENGTH
 
 
@@ -30,7 +29,7 @@ class DomainInfo:
         creation_height: uint32,
         creation_timestamp: uint64,
         renewal_timestamp: uint64,
-        const_tuple: Tuple[bytes, int],
+        const_tuple: tuple[bytes, int],
     ) -> "DomainInfo":
         # const_tuple is a tuple of (sig_additional_data, max_block_cost)
         d_class = DomainOuterPuzzle.from_coin_spend(spend, const_tuple)

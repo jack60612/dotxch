@@ -1,6 +1,6 @@
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional
 
-from blspy import G1Element, G2Element, PrivateKey
+from blspy import G2Element, PrivateKey
 from chia.types.announcement import Announcement
 from chia.types.blockchain_format.coin import Coin
 from chia.types.blockchain_format.program import Program
@@ -20,165 +20,11 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
     puzzle_for_singleton,
     solution_for_singleton,
 )
-from chia.wallet.sign_coin_spends import sign_coin_spends
 
-from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType, program_to_list
-from resolver.puzzles.puzzles import (
-    DOMAIN_PH_MOD,
-    DOMAIN_PH_MOD_HASH,
-    INNER_SINGLETON_MOD,
-    REGISTRATION_FEE_MOD,
-    REGISTRATION_FEE_MOD_HASH,
-)
-
-
-async def sign_coin_spend(
-    agg_sig_me_additional_data: bytes, max_block_cost_clvm: int, coin_spend: CoinSpend, private_key: PrivateKey
-) -> SpendBundle:
-    async def priv_key(pk: G1Element) -> PrivateKey:
-        return private_key
-
-    return await sign_coin_spends(
-        [coin_spend],
-        priv_key,
-        agg_sig_me_additional_data,
-        max_block_cost_clvm,
-    )
-
-
-def program_to_lineage_proof(program: Program) -> LineageProof:
-    python_program = program_to_list(program)
-    parent_name: bytes32 = python_program[0]
-    inner_ph: Optional[bytes32] = None
-    if len(python_program) == 3:
-        inner_ph = python_program[1]
-        amount: uint64 = python_program[2]
-    else:
-        amount = python_program[1]
-    return LineageProof(parent_name, inner_ph, amount)
-
-
-class DomainPuzzle(BasePuzzle):
-    def __init__(self, domain_name: str):
-        super().__init__(
-            PuzzleType.DOMAIN, DOMAIN_PH_MOD, DOMAIN_PH_MOD_HASH, 1, 0, [domain_name], domain_name=domain_name
-        )
-
-    @classmethod
-    def from_coin_spend(cls, coin_spend: CoinSpend, _=None) -> "DomainPuzzle":
-        spend_super_class = super().from_coin_spend(coin_spend, PuzzleType.DOMAIN)
-        if spend_super_class.puzzle_mod != DOMAIN_PH_MOD_HASH:
-            raise ValueError("Incorrect Puzzle Driver")
-        assert spend_super_class.domain_name is not None
-        return cls(spend_super_class.domain_name)
-
-    def to_coin_spend(self, coin: Coin) -> CoinSpend:
-        assert coin.amount == 1
-        return super().to_coin_spend(coin)
-
-    async def to_spend_bundle(self, coin: Coin, _) -> SpendBundle:
-        coin_spends = [self.to_coin_spend(coin)]
-        return SpendBundle(coin_spends, G2Element())
-
-
-class RegistrationFeePuzzle(BasePuzzle):
-    def __init__(
-        self,
-        domain_name: str,
-        domain_outer_ph: bytes32,
-        singleton_launcher_id: bytes32,
-        singleton_parent_id: bytes32,
-    ):
-        self.domain_outer_ph = domain_outer_ph
-        solutions_list = [
-            domain_name,
-            self.domain_outer_ph,
-            singleton_launcher_id,
-            singleton_parent_id,
-        ]
-        super().__init__(
-            PuzzleType.FEE,
-            REGISTRATION_FEE_MOD,
-            REGISTRATION_FEE_MOD_HASH,
-            0,
-            4,
-            [],
-            solutions_list,
-            domain_name=domain_name,
-        )
-
-    @classmethod
-    def from_coin_spend(cls, coin_spend: CoinSpend, _=None) -> "RegistrationFeePuzzle":
-        spend_super_class = super().from_coin_spend(coin_spend, PuzzleType.FEE)
-        if spend_super_class.puzzle_mod != REGISTRATION_FEE_MOD_HASH:
-            raise ValueError("Incorrect Puzzle Driver")
-        _, outer_ph, fee_parent_id, singleton_launcher_id = spend_super_class.solution_args
-        assert spend_super_class.domain_name is not None
-        return cls(spend_super_class.domain_name, outer_ph, fee_parent_id, singleton_launcher_id)
-
-    async def to_spend_bundle(self, coin: Coin, _=None) -> SpendBundle:
-        coin_spends = [self.to_coin_spend(coin)]
-        return SpendBundle(coin_spends, G2Element())
-
-
-class DomainInnerPuzzle(BasePuzzle):
-    def __init__(
-        self,
-        domain_name: str,
-        pub_key: G1Element,
-        metadata: List[Tuple[str, str]],
-    ):
-        self.cur_pub_key = pub_key
-        self.cur_metadata = metadata
-        # because the puzzle needs its hash with the domain,
-        # we calculate it below, and modify the puzzle, unlike other drivers.
-        puzzle_mod = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
-        puzzle_mod_hash = puzzle_mod.get_tree_hash()
-        curry_args = [puzzle_mod_hash, pub_key, metadata]
-        super().__init__(PuzzleType.INNER, puzzle_mod, puzzle_mod_hash, 3, 4, curry_args, domain_name=domain_name)
-
-    @classmethod
-    def from_coin_spend(cls, coin_spend: CoinSpend, _=None) -> "DomainInnerPuzzle":
-        spend_super_class = super().from_coin_spend(coin_spend, PuzzleType.INNER)
-        if spend_super_class.raw_puzzle.uncurry()[0] != INNER_SINGLETON_MOD:
-            raise ValueError("Incorrect Puzzle Driver")
-        curry_args = spend_super_class.curry_args
-        assert spend_super_class.domain_name is not None
-        return cls(spend_super_class.domain_name, curry_args[1], curry_args[2])
-
-    def generate_solution_args(
-        self,
-        new_pubkey: Optional[Union[G1Element, bool]] = None,
-        new_metadata: Optional[Union[List[Tuple[str, str]], bool]] = None,
-        renew: bool = False,
-        coin: Optional[Coin] = None,
-    ) -> None:
-        # Args are: Renew, new_metadata, new_pubkey
-        if new_pubkey is not None:
-            if new_metadata is None:
-                new_metadata = self.cur_metadata
-            sol_args = [0, new_metadata, new_pubkey]
-        elif renew:
-            if new_metadata is None:
-                new_metadata = False
-            sol_args = [1, new_metadata, 0]
-        elif new_metadata is not None:
-            sol_args = [0, new_metadata, 0]
-        else:
-            raise ValueError("No arguments provided")
-        if coin is not None:
-            sol_args = [coin.parent_coin_info] + sol_args
-        self.solution_args = sol_args  # Override solution args
-
-    def to_coin_spend(self, coin: Coin) -> CoinSpend:
-        if self.solution_args[0] != coin.parent_coin_info:
-            self.solution_args = [coin.parent_coin_info] + self.solution_args  # add coin parent id first
-        if not self.is_spendable_puzzle:
-            raise ValueError("Other arguments have not been generated")
-        return super().to_coin_spend(coin)
-
-    async def to_spend_bundle(self, coin: Coin, _) -> SpendBundle:
-        raise NotImplementedError("Inner puzzles are not designed to be spent unwrapped.")
+from resolver.drivers.domain_inner_puzzle import DomainInnerPuzzle
+from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType, program_to_list, sign_coin_spend
+from resolver.drivers.registration_fee_puzzle import RegistrationFeePuzzle
+from resolver.puzzles.puzzles import INNER_SINGLETON_MOD, REGISTRATION_FEE_MOD_HASH
 
 
 class DomainOuterPuzzle(BasePuzzle):
@@ -212,9 +58,7 @@ class DomainOuterPuzzle(BasePuzzle):
         )
 
     @classmethod
-    def from_coin_spend(
-        cls, coin_spend: CoinSpend, const_tuple: Tuple[bytes, int]
-    ) -> "DomainOuterPuzzle":  # type: ignore
+    def from_coin_spend(cls, coin_spend: CoinSpend, const_tuple: tuple[bytes, int]) -> "DomainOuterPuzzle":
         sig_additional_data, max_block_cost = const_tuple
         try:
             new_coins: list[Coin] = compute_additions(coin_spend)
@@ -260,7 +104,7 @@ class DomainOuterPuzzle(BasePuzzle):
         private_key: PrivateKey,
         inner_puzzle: DomainInnerPuzzle,
         base_coin: Coin,
-    ) -> Tuple[List[Announcement], List[Announcement], List[Dict[str, Any]], SpendBundle]:
+    ) -> tuple[list[Announcement], list[Announcement], list[dict[str, Any]], SpendBundle]:
         if not base_coin.amount >= 10000000002:
             # 10000000001 is for the fee ph, and 1 is for the singleton.
             raise ValueError("Base coin must be at least 1000000002 mojo's")
@@ -318,8 +162,8 @@ class DomainOuterPuzzle(BasePuzzle):
         private_key: PrivateKey,
         domain_singleton: Coin,
         fee_coin: Coin,
-        new_metadata: Optional[List[Tuple[str, str]]] = None,
-    ) -> Tuple[List[Announcement], List[Dict[str, Any]], SpendBundle]:
+        new_metadata: Optional[list[tuple[str, str]]] = None,
+    ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
         # first we set inner puzzle to renew mode.
         self.domain_puzzle.generate_solution_args(renew=True, new_metadata=new_metadata, coin=domain_singleton)
         # now we generate a singleton renewal spend bundle.
@@ -351,8 +195,8 @@ class DomainOuterPuzzle(BasePuzzle):
         self,
         private_key: PrivateKey,
         domain_singleton: Coin,
-        new_metadata: List[Tuple[str, str]],
-    ) -> Tuple[List[Announcement], List[Dict[str, Any]], SpendBundle]:
+        new_metadata: list[tuple[str, str]],
+    ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
         assert self.domain_name is not None
         # first we set inner puzzle to change metadata.
         self.domain_puzzle.generate_solution_args(new_metadata=new_metadata, coin=domain_singleton)
