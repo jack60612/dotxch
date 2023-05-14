@@ -24,6 +24,10 @@ class PuzzleType(Enum):
     OUTER = 3
 
 
+DomainMetadata = list[tuple[str, str]]
+RawDomainMetadata = list[tuple[bytes, bytes]]
+
+
 def program_to_list(program: Program) -> list[Any]:
     """
     This is a helper function to convert a Program to a list of arguments, which were taken from the curry args of a
@@ -48,6 +52,10 @@ def program_to_list(program: Program) -> list[Any]:
         else:
             n_list.append(item)
     return n_list
+
+
+def fix_metadata(metadata: RawDomainMetadata) -> DomainMetadata:
+    return [(key.decode("utf-8"), value.decode("utf-8")) for key, value in metadata]
 
 
 def validate_initial_spend(coin_spend: Optional[CoinSpend]) -> Optional[bytes32]:
@@ -133,7 +141,11 @@ class BasePuzzle:
             raise ValueError("Invalid CoinSpend")
         solution_args = program_to_list(coin_spend.solution.to_program())
 
-        if not puzzle_type == PuzzleType.FEE:
+        if puzzle_type == PuzzleType.FEE:
+            base_puzzle = coin_spend.puzzle_reveal.to_program()
+            domain_name = solution_args[0]
+            curried_args = []
+        else:
             base_puzzle, raw_curried_args = coin_spend.puzzle_reveal.uncurry()
             curried_args = program_to_list(raw_curried_args)
             if puzzle_type == PuzzleType.DOMAIN:
@@ -142,10 +154,6 @@ class BasePuzzle:
                 domain_name = base_puzzle.uncurry()[1].as_python()[0]
             else:
                 raise ValueError("Invalid Puzzle Type")
-        else:
-            base_puzzle = coin_spend.puzzle_reveal.to_program()
-            domain_name = solution_args[0]
-            curried_args = []
         return BasePuzzle(
             puzzle_type=puzzle_type,
             raw_puzzle=base_puzzle,

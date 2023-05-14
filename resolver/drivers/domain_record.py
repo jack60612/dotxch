@@ -5,11 +5,13 @@ from chia.types.coin_spend import CoinSpend
 from chia.util.ints import uint32, uint64
 
 from resolver.drivers.domain_outer_puzzle import DomainOuterPuzzle
+from resolver.drivers.puzzle_class import DomainMetadata
 from resolver.puzzles.domain_constants import GRACE_PERIOD, REGISTRATION_LENGTH
+from resolver.types.resolution_status_code import ResolutionStatusCode
 
 
 @dataclass(frozen=True)
-class DomainInfo:
+class DomainRecord:
     """
     This class is used to represent the data for a domain in the blockchain.
     """
@@ -30,7 +32,7 @@ class DomainInfo:
         creation_timestamp: uint64,
         renewal_timestamp: uint64,
         const_tuple: tuple[bytes, int],
-    ) -> "DomainInfo":
+    ) -> "DomainRecord":
         # const_tuple is a tuple of (sig_additional_data, max_block_cost)
         d_class = DomainOuterPuzzle.from_coin_spend(spend, const_tuple)
         return cls(d_class, spend, spend_height, creation_height, creation_timestamp, renewal_timestamp)
@@ -49,6 +51,10 @@ class DomainInfo:
         return self.domain_class.launcher_id
 
     @property
+    def cur_metadata(self) -> DomainMetadata:
+        return self.domain_class.domain_puzzle.cur_metadata
+
+    @property
     def expiration_timestamp(self) -> uint64:
         return uint64(self.renewal_timestamp + REGISTRATION_LENGTH)
 
@@ -61,3 +67,11 @@ class DomainInfo:
 
     def in_grace_period(self, current_timestamp: uint64) -> bool:
         return bool(self.expiration_timestamp < current_timestamp < self.grace_period_timestamp)
+
+    def get_status_code(self, current_timestamp: uint64) -> ResolutionStatusCode:
+        if self.in_grace_period(current_timestamp):
+            return ResolutionStatusCode.GRACE_PERIOD
+        if self.is_expired(current_timestamp):
+            return ResolutionStatusCode.EXPIRED
+        else:
+            return ResolutionStatusCode.FOUND
