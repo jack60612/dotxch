@@ -1,7 +1,7 @@
 (mod (RELATIVE_EXPIRY_SECONDS DOMAIN_NAME)
     ; this puzzle does not really do a lot, however i thought it would be nice to be able to easily clean up the dust
 
-    (include condition_codes.clvm)
+    (include condition_codes.clib)
 
     ; main
     (list

@@ -4,8 +4,8 @@
     ;; a puzzle with those values already curried.
     ; mode = 0 for normal metadata update, 1 for renewal / creation
 
-    (include condition_codes.clvm)
-    (include "curry-and-treehash.clinc")
+    (include condition_codes.clib)
+    (include "curry-and-treehash.clib")
 
     ; takes a lisp tree and returns the hash of it
     (defun sha256tree1 (TREE)
