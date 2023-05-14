@@ -1,7 +1,9 @@
 from setuptools import setup
 
 dependencies = [
-    "chia-blockchain==1.6.1",
+    "packaging",
+    "chia-blockchain==1.8.0",
+    "blspy",
 ]
 
 dev_dependencies = [
@@ -14,11 +16,9 @@ dev_dependencies = [
     "isort",
     "flake8",
     "mypy",
-    # TODO: black 22.1.0 requires click>=8, remove this pin after updating to click 8
-    "black==21.12b0",
-    "aiohttp_cors",  # For blackd
+    "black",
     "ipython",  # For asyncio debugging
-    "pyinstaller==5.0",
+    "pyinstaller",
     "types-aiofiles",
     "types-click",
     "types-cryptography",
@@ -30,7 +30,6 @@ dev_dependencies = [
 
 setup(
     name="dotxch",
-    version="0.0.1",
     url="https://dotxch.io",
     license="Apache Licence",
     author="Jack Nelson",

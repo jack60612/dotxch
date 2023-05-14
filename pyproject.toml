@@ -1,14 +1,18 @@
 [build-system]
 requires = [
     "setuptools>=42",
+    "setuptools_scm[toml]>=4.1.2",
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools_scm]
+fallback_version = "0.0.1"
+local_scheme = "no-local-version"
+
 [tool.black]
 line-length = 120
 
-[flake8]
-max-line-length = 120
-exclude = "./typings/**/*"
-ignore = "E203,W503"
+[tool.isort]
+profile = "black"
+line_length = 120
