@@ -37,10 +37,10 @@ class DomainInnerPuzzle(BasePuzzle):
 
     def generate_solution_args(
         self,
+        coin: Coin,
         new_pubkey: Optional[Union[G1Element, bool]] = None,
         new_metadata: Optional[Union[list[tuple[str, str]], bool]] = None,
         renew: bool = False,
-        coin: Optional[Coin] = None,
     ) -> None:
         # Args are: Renew, new_metadata, new_pubkey
         if new_pubkey is not None:
@@ -55,9 +55,8 @@ class DomainInnerPuzzle(BasePuzzle):
             sol_args = [0, new_metadata, 0]
         else:
             raise ValueError("No arguments provided")
-        if coin is not None:
-            sol_args = [coin.parent_coin_info] + sol_args
-        self.solution_args = sol_args  # Override solution args
+        # sometimes we make a custom spend, so we need to add the coin parent id now.
+        self.solution_args = [coin.parent_coin_info] + sol_args  # Override solution args
 
     def to_coin_spend(self, coin: Coin) -> CoinSpend:
         if self.solution_args[0] != coin.parent_coin_info:

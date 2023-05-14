@@ -27,6 +27,26 @@ from resolver.drivers.registration_fee_puzzle import RegistrationFeePuzzle
 from resolver.puzzles.puzzles import INNER_SINGLETON_MOD, REGISTRATION_FEE_MOD_HASH
 
 
+async def _renew_domain(
+    reg_fee_puzzle: RegistrationFeePuzzle, domain_singleton: Coin, parent_fee_coin_id: bytes32
+) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
+    # now generate the fee spend bundle.
+    fee_coin = Coin(parent_fee_coin_id, REGISTRATION_FEE_MOD_HASH, 10000000001)
+    # resulting fee spend bundle.
+    fee_sb: SpendBundle = await reg_fee_puzzle.to_spend_bundle(fee_coin)
+    assert reg_fee_puzzle.domain_name is not None
+    puzzle_assertions = [
+        Announcement(
+            REGISTRATION_FEE_MOD_HASH,
+            bytes(std_hash(reg_fee_puzzle.domain_name.encode() + domain_singleton.parent_coin_info)),
+        )
+    ]
+
+    # primaries are coins required for this spend bundle and the amount is fee + 1 for singleton.
+    primaries = [dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]
+    return puzzle_assertions, primaries, fee_sb
+
+
 class DomainOuterPuzzle(BasePuzzle):
     def __init__(
         self,
@@ -36,9 +56,9 @@ class DomainOuterPuzzle(BasePuzzle):
         lineage_proof: LineageProof,
         inner_puzzle: DomainInnerPuzzle,
     ):
-        self.domain_puzzle = inner_puzzle
-        self.lineage_proof = lineage_proof
-        self.launcher_id = launcher_id
+        self.domain_puzzle: DomainInnerPuzzle = inner_puzzle
+        self.lineage_proof: LineageProof = lineage_proof
+        self.launcher_id: bytes32 = launcher_id
         # This is: (MOD_HASH . (LAUNCHER_ID . LAUNCHER_PUZZLE_HASH)) & the inner puzzle
         curry_args = [(SINGLETON_MOD_HASH, (launcher_id, SINGLETON_LAUNCHER_HASH)), inner_puzzle.complete_puzzle()]
         # we will add the rest of the args below.
@@ -63,7 +83,6 @@ class DomainOuterPuzzle(BasePuzzle):
         try:
             new_coins: list[Coin] = compute_additions(coin_spend)
             assert len(new_coins) == 1
-            new_coin: Coin = new_coins[0]
         except Exception:
             raise ValueError("Invalid CoinSpend")
         # first we receive and validate the puzzle and its first curried layer.
@@ -71,29 +90,35 @@ class DomainOuterPuzzle(BasePuzzle):
         if base_puzzle.get_tree_hash() != SINGLETON_MOD_HASH:
             raise ValueError("Incorrect Puzzle Driver")
 
-        launcher_id = bytes32(curried_args.pair[0].pair[1].pair[0].atom)  # only outer uncurry.
-        # uncurry inner puzzle.
-        singleton_inner_puzzle = Program(curried_args.pair[1].pair[0])
+        # [MOD_HASH, LAUNCHER_ID, LAUNCHER_PUZZLE_HASH], INNER_PUZZLE
+        singleton_struct, singleton_inner_puzzle = list(curried_args.as_iter())
+        launcher_id = bytes32(singleton_struct.as_python()[1])  # only outer uncurry.
+
+        # 2nd layer of curried args, [PUB_KEY, METADATA]
         singleton_base_inner_puzzle, raw_inner_curry_args = singleton_inner_puzzle.uncurry()
         assert singleton_base_inner_puzzle.uncurry()[0] == INNER_SINGLETON_MOD  # sanity check
-        domain_name = singleton_base_inner_puzzle.uncurry()[1].pair[0].atom.decode("utf-8")  # domain from puzzle.
 
         # now we extract the curried args from the inner puzzle.
-        inner_curry_args = program_to_list(raw_inner_curry_args)
-        pub_key = inner_curry_args[1]
-        metadata = inner_curry_args[2]
+        _, pub_key, metadata = program_to_list(raw_inner_curry_args)
+
+        # Lastly we get the domain name, 3rd layer of curried args. [DOMAIN_NAME]
+        domain_name = singleton_base_inner_puzzle.uncurry()[1].pair[0].atom.decode("utf-8")  # domain from puzzle.
 
         # we now process the coin_spend and get the potentially updated args.
-        solution_program = coin_spend.solution.to_program()
-        # first we select the inner sol, then we convert it into a list.
-        _, _, sol_metadata, sol_pub_key = program_to_list(Program.to(solution_program.pair[1].pair[1].pair[0]))
-        # now we replace the curried data with the data from the solution.
+        cs_solution = coin_spend.solution.to_program()
+        # we select the inner sol, then we convert it into a list.
+        _, _, sol_metadata, sol_pub_key = program_to_list(Program.to(cs_solution.pair[1].pair[1].pair[0]))
+        # now we replace the curried data with the data from the solution, if there is any.
         pub_key = sol_pub_key if sol_pub_key else pub_key
         metadata = sol_metadata if sol_metadata else metadata
+
+        # make finished inner puzzle.
         inner_puzzle_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
-        # create a new lineage proof object.
+
+        # create a new lineage proof object, this is used to generate the parent coin info.
+        # essentially: (parent_coin.parent_coin_id, parents_inner_puz_hash, parent_coin.amount)
         lineage_proof: LineageProof = LineageProof(
-            new_coin.name(), singleton_inner_puzzle.get_tree_hash(), uint64(new_coin.amount)
+            coin_spend.coin.parent_coin_info, singleton_inner_puzzle.get_tree_hash(), uint64(coin_spend.coin.amount)
         )
         return cls(sig_additional_data, max_block_cost, launcher_id, lineage_proof, inner_puzzle_class)
 
@@ -112,47 +137,41 @@ class DomainOuterPuzzle(BasePuzzle):
         _, singleton_spend = launch_conditions_and_coinsol(
             base_coin, inner_puzzle.complete_puzzle(), inner_puzzle.cur_metadata, uint64(1)
         )
-        # we create the spend bundle for the singleton
+        launcher_coin = singleton_spend.coin  # the first child of the base coin.
+        # we create the spend bundle to create the singleton coin from the launcher.
         singleton_spend_bundle = SpendBundle([singleton_spend], G2Element())
-        singleton_coin = singleton_spend.coin
-        domain_coin = compute_additions(singleton_spend)[0]
+        # we get the resulting coin and its lineage proof.
+        domain_coin = compute_additions(singleton_spend)[0]  # 2nd child of the base coin, (it's a singleton now)
         lineage_proof = lineage_proof_for_coinsol(singleton_spend)  # initial lineage proof
 
         # create args for the inner puzzle renewal / creation spend.
         inner_puzzle.generate_solution_args(renew=True, coin=domain_coin)
         # now we create the domain full solution, coin spend & then a signed spend bundle
         # we wrap the coin spend in the singleton layer.
-        domain_solution = SerializedProgram.from_program(
+        domain_coin_solution = SerializedProgram.from_program(
             solution_for_singleton(lineage_proof, uint64(1), inner_puzzle.generate_solution())
         )
-        outer_puzzle_reveal = puzzle_for_singleton(singleton_coin.name(), inner_puzzle.complete_puzzle())
-        domain_cs = CoinSpend(domain_coin, SerializedProgram.from_program(outer_puzzle_reveal), domain_solution)
+        outer_puzzle_reveal = puzzle_for_singleton(launcher_coin.name(), inner_puzzle.complete_puzzle())
+        domain_cs = CoinSpend(domain_coin, SerializedProgram.from_program(outer_puzzle_reveal), domain_coin_solution)
         domain_spend_bundle = await sign_coin_spend(sig_additional_data, max_block_cost, domain_cs, private_key)
 
-        # now we create the fee puzzle spend.
+        # now we create the fee puzzle spend / renewal.
         assert inner_puzzle.domain_name is not None
         reg_fee_puzzle = RegistrationFeePuzzle(
             inner_puzzle.domain_name,
             outer_puzzle_reveal.get_tree_hash(),
-            singleton_coin.name(),
+            launcher_coin.name(),
             domain_coin.parent_coin_info,
         )
-        fee_coin = Coin(base_coin.name(), REGISTRATION_FEE_MOD_HASH, 10000000001)
-        fee_spend_bundle = await reg_fee_puzzle.to_spend_bundle(fee_coin)
-        # for the launcher puzzle
-        coin_assertions = [Announcement(singleton_coin.name(), singleton_spend.solution.get_tree_hash())]
-        # for the registration_fee puzzle
-        puzzle_assertions = [
-            Announcement(
-                REGISTRATION_FEE_MOD_HASH,
-                bytes(std_hash(inner_puzzle.domain_name.encode() + domain_cs.coin.parent_coin_info)),
-            )
-        ]
+        puzzle_assertions, fee_primaries, fee_spend_bundle = await _renew_domain(
+            reg_fee_puzzle, domain_coin, base_coin.name()
+        )
         # fee ph, 1 for singleton
         primaries = [
-            dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH),
             dict(amount=uint64(1), puzzle_hash=SINGLETON_LAUNCHER_HASH),
-        ]
+        ] + fee_primaries
+        # for the launcher puzzle
+        coin_assertions = [Announcement(launcher_coin.name(), singleton_spend.solution.get_tree_hash())]
         # add the bundles together to get the final bundle.
         spend_bundle = SpendBundle.aggregate([singleton_spend_bundle, domain_spend_bundle, fee_spend_bundle])
         return coin_assertions, puzzle_assertions, primaries, spend_bundle
@@ -161,35 +180,30 @@ class DomainOuterPuzzle(BasePuzzle):
         self,
         private_key: PrivateKey,
         domain_singleton: Coin,
-        fee_coin: Coin,
+        parent_fee_coin: Coin,
         new_metadata: Optional[list[tuple[str, str]]] = None,
     ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
-        # first we set inner puzzle to renew mode.
+        if self.lineage_proof.parent_name is None:
+            raise ValueError("Cannot renew a domain that has never had an initial spend.")
+
+        # Generate singleton renewal spend bundle.
         self.domain_puzzle.generate_solution_args(renew=True, new_metadata=new_metadata, coin=domain_singleton)
-        # now we generate a singleton renewal spend bundle.
-        singleton_sb = await self.to_spend_bundle(private_key, domain_singleton)
-        # now we generate the fee spend bundle.
+        singleton_sb: SpendBundle = await self.to_spend_bundle(private_key, domain_singleton)
+
         assert self.domain_name is not None
+        # get resulting fee spend bundle.
         reg_fee_puzzle = RegistrationFeePuzzle(
             self.domain_name,
             self.complete_puzzle_hash(),
             self.launcher_id,
             domain_singleton.parent_coin_info,
         )
-        fee_coin = Coin(fee_coin.name(), REGISTRATION_FEE_MOD_HASH, 10000000001)
-        fee_sb = await reg_fee_puzzle.to_spend_bundle(fee_coin)
-        if self.lineage_proof.parent_name is None:
-            raise ValueError("Cannot renew a domain that has never had an initial spend.")
-        puzzle_assertions = [
-            Announcement(
-                REGISTRATION_FEE_MOD_HASH,
-                bytes(std_hash(self.domain_name.encode() + domain_singleton.parent_coin_info)),
-            )
-        ]
-        # fee ph, 1 for singleton
-        primaries = [dict(amount=uint64(10000000001), puzzle_hash=REGISTRATION_FEE_MOD_HASH)]
-        spend_bundle = SpendBundle.aggregate([singleton_sb, fee_sb])
-        return puzzle_assertions, primaries, spend_bundle
+        puzzle_assertions, primaries, fee_sb = await _renew_domain(
+            reg_fee_puzzle, domain_singleton, parent_fee_coin.name()
+        )
+        # Combine the two spend bundles.
+        combined_spend_bundle: SpendBundle = SpendBundle.aggregate([singleton_sb, fee_sb])
+        return puzzle_assertions, primaries, combined_spend_bundle
 
     async def update_metadata(
         self,
