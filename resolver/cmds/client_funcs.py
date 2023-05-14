@@ -382,12 +382,12 @@ class WalletClient:
         wallet_id: int,
         domain_name: str,
         fee: uint64,
-        launcher_id: bytes32,
+        launcher_id: Optional[bytes32] = None,
         ignore_validity: bool = False,
         new_metadata: Optional[list[tuple[str, str]]] = None,
     ) -> Optional[tuple[TransactionRecord, SpendBundle]]:
         """
-        This function creates a renews a domainname and returns the spend bundle that would create it.
+        This function renews a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless a launcher_id is provided.
         :param wallet_id: the id of the wallet
         :param domain_name: the domain_name to renew
@@ -406,7 +406,10 @@ class WalletClient:
         if self.node_client is None:
             raise ValueError("Not Connected to a Node.")
         # we first find the domain.
-        all_d_records = await self.node_client.discover_all_domains(domain_name, [launcher_id])
+        launcher_ids = None
+        if launcher_id is not None:
+            launcher_ids = [launcher_id]
+        all_d_records = await self.node_client.discover_all_domains(domain_name, launcher_ids)
         if len(all_d_records) == 0:  # no records found
             return None
         # override if launcher id is expired.
@@ -453,9 +456,9 @@ class WalletClient:
     async def update_metadata(
         self,
         domain_name: str,
-        launcher_id: bytes32,
         fee: uint64,
         new_metadata: list[tuple[str, str]],
+        launcher_id: Optional[bytes32] = None,
         ignore_validity: bool = False,
     ) -> tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
         """
@@ -477,7 +480,10 @@ class WalletClient:
         if self.node_client is None:
             raise ValueError("Not Connected to a Node.")
         # we first find the domain.
-        all_d_records = await self.node_client.discover_all_domains(domain_name, [launcher_id])
+        launcher_ids = None
+        if launcher_id is not None:
+            launcher_ids = [launcher_id]
+        all_d_records = await self.node_client.discover_all_domains(domain_name, launcher_ids)
         if len(all_d_records) == 0:  # no records found
             return None, None
         # override if launcher id is expired.
@@ -489,6 +495,7 @@ class WalletClient:
             cur_record = all_d_records[0]
         if cur_record is None:  # Non expired domain name already exists and we arnt overriding it.
             return None, None
+
         # now that we have the domain, we resolve it (get latest info) & get the inner puzzle.
         cur_record = await self.node_client.resolve_domain(cur_record)
         outer_class: DomainOuterPuzzle = cur_record.domain_class
@@ -500,6 +507,7 @@ class WalletClient:
             latest_coin,
             new_metadata,
         )
+
         tx: Optional[TransactionRecord] = None
         if fee > 0:
             # now we create a transaction.

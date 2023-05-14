@@ -134,25 +134,27 @@ class DomainOuterPuzzle(BasePuzzle):
             # 10000000001 is for the fee ph, and 1 is for the singleton.
             raise ValueError("Base coin must be at least 1000000002 mojo's")
         # we create the singleton coin
-        _, singleton_spend = launch_conditions_and_coinsol(
+        _, launcher_spend = launch_conditions_and_coinsol(
             base_coin, inner_puzzle.complete_puzzle(), inner_puzzle.cur_metadata, uint64(1)
         )
-        launcher_coin = singleton_spend.coin  # the first child of the base coin.
+        launcher_coin = launcher_spend.coin  # the first child of the base coin.
         # we create the spend bundle to create the singleton coin from the launcher.
-        singleton_spend_bundle = SpendBundle([singleton_spend], G2Element())
-        # we get the resulting coin and its lineage proof.
-        domain_coin = compute_additions(singleton_spend)[0]  # 2nd child of the base coin, (it's a singleton now)
-        lineage_proof = lineage_proof_for_coinsol(singleton_spend)  # initial lineage proof
+        launcher_spend_bundle = SpendBundle([launcher_spend], G2Element())
+        # we get the resulting coin from the launcher and its lineage proof.
+        domain_singleton = compute_additions(launcher_spend)[0]  # 2nd child of the base coin, (it's a singleton now)
+        lineage_proof = lineage_proof_for_coinsol(launcher_spend)  # initial lineage proof
 
         # create args for the inner puzzle renewal / creation spend.
-        inner_puzzle.generate_solution_args(renew=True, coin=domain_coin)
+        inner_puzzle.generate_solution_args(renew=True, coin=domain_singleton)
         # now we create the domain full solution, coin spend & then a signed spend bundle
         # we wrap the coin spend in the singleton layer.
-        domain_coin_solution = SerializedProgram.from_program(
+        domain_singleton_solution = SerializedProgram.from_program(
             solution_for_singleton(lineage_proof, uint64(1), inner_puzzle.generate_solution())
         )
         outer_puzzle_reveal = puzzle_for_singleton(launcher_coin.name(), inner_puzzle.complete_puzzle())
-        domain_cs = CoinSpend(domain_coin, SerializedProgram.from_program(outer_puzzle_reveal), domain_coin_solution)
+        domain_cs = CoinSpend(
+            domain_singleton, SerializedProgram.from_program(outer_puzzle_reveal), domain_singleton_solution
+        )
         domain_spend_bundle = await sign_coin_spend(sig_additional_data, max_block_cost, domain_cs, private_key)
 
         # now we create the fee puzzle spend / renewal.
@@ -161,20 +163,18 @@ class DomainOuterPuzzle(BasePuzzle):
             inner_puzzle.domain_name,
             outer_puzzle_reveal.get_tree_hash(),
             launcher_coin.name(),
-            domain_coin.parent_coin_info,
+            domain_singleton.parent_coin_info,
         )
         puzzle_assertions, fee_primaries, fee_spend_bundle = await _renew_domain(
-            reg_fee_puzzle, domain_coin, base_coin.name()
+            reg_fee_puzzle, domain_singleton, base_coin.name()
         )
         # fee ph, 1 for singleton
-        primaries = [
-            dict(amount=uint64(1), puzzle_hash=SINGLETON_LAUNCHER_HASH),
-        ] + fee_primaries
+        primaries = [dict(amount=uint64(1), puzzle_hash=SINGLETON_LAUNCHER_HASH)] + fee_primaries
         # for the launcher puzzle
-        coin_assertions = [Announcement(launcher_coin.name(), singleton_spend.solution.get_tree_hash())]
+        coin_assertions = [Announcement(launcher_coin.name(), launcher_spend.solution.get_tree_hash())]
         # add the bundles together to get the final bundle.
-        spend_bundle = SpendBundle.aggregate([singleton_spend_bundle, domain_spend_bundle, fee_spend_bundle])
-        return coin_assertions, puzzle_assertions, primaries, spend_bundle
+        combined_spend_bundle = SpendBundle.aggregate([launcher_spend_bundle, domain_spend_bundle, fee_spend_bundle])
+        return coin_assertions, puzzle_assertions, primaries, combined_spend_bundle
 
     async def renew_domain(
         self,
