@@ -22,27 +22,34 @@
         )
     )
 
-    ;main
-    (if new_pub_key
-        (list ;; Transferring Domain
-            (list AGG_SIG_ME PUB_KEY (sha256tree1 new_pub_key new_metadata))
-            (list CREATE_COIN (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 new_metadata) (sha256tree1 new_pub_key)) 1)
-        )
-        (if mode
-            (list ;; Renewing Domain
-                (list AGG_SIG_ME PUB_KEY (sha256tree1 parent_id (if new_metadata new_metadata METADATA))) ;; parent id + new or existing metadata
-                (list ASSERT_MY_PARENT_ID parent_id) ;; Validate Parent ID
-                (list CREATE_PUZZLE_ANNOUNCEMENT  (sha256 DOMAIN_NAME parent_id)) ;; for the fee puzzle
-                (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 REG_FEE_PH (sha256 DOMAIN_NAME parent_id))) ;; from the fee puzzle
-                ;; do a final spend to expose the data.
-                (list CREATE_COIN
-                (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 (if new_metadata new_metadata METADATA)) (sha256tree1 PUB_KEY)) 1)
-            )
-            (list ;; Updating Metadata
-                (list AGG_SIG_ME PUB_KEY (sha256tree1 new_metadata))
-                (list CREATE_PUZZLE_ANNOUNCEMENT  (sha256 DOMAIN_NAME parent_id)) ;; to make sure the fee cant be stolen
-                (list CREATE_COIN (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 new_metadata) (sha256tree1 PUB_KEY)) 1)
-            )
-        )
+    ;; Create coin with new puzzle hash.
+    (defun create-coin-with-new-ph (MOD_HASH metadata pub_key)
+        (list CREATE_COIN (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 metadata) (sha256tree1 pub_key)) 1)
     )
+
+    ;;; main
+    (c ; append condition below, to list that was combined with the create puz announcement below too.
+        ; standard conditions
+        (list ASSERT_MY_PARENT_ID parent_id) ;; Validate Parent ID
+
+        (c ; add puzzle announcement to front of all conditions.
+            (list CREATE_PUZZLE_ANNOUNCEMENT (sha256 DOMAIN_NAME parent_id)) ;; for making sure the fee (tx or reg) cant be stolen
+            (if new_pub_key
+                (list ;; Transferring Domain
+                    (list AGG_SIG_ME PUB_KEY (sha256tree1 new_pub_key new_metadata))
+                    (create-coin-with-new-ph MOD_HASH new_metadata new_pub_key)
+                )
+                (if mode
+                    (list ;; Renewing Domain
+                        (list AGG_SIG_ME PUB_KEY (sha256tree1 parent_id (if new_metadata new_metadata METADATA))) ;; parent id + new or existing metadata
+                        (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 REG_FEE_PH (sha256 DOMAIN_NAME parent_id))) ;; from the fee puzzle
+                        (create-coin-with-new-ph MOD_HASH (if new_metadata new_metadata METADATA) PUB_KEY)
+                    )
+                    (list ;; Updating Metadata
+                        (list AGG_SIG_ME PUB_KEY (sha256tree1 new_metadata))
+                        (create-coin-with-new-ph MOD_HASH new_metadata PUB_KEY)
+                    )
+                )
+            )
+    )   )
 )
