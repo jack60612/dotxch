@@ -21,9 +21,9 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
     solution_for_singleton,
 )
 
-from resolver.drivers.domain_inner_puzzle import DomainInnerPuzzle
+from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
 from resolver.drivers.puzzle_class import BasePuzzle, DomainMetadata, PuzzleType, sign_coin_spend
-from resolver.drivers.registration_fee_puzzle import RegistrationFeePuzzle
+from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 
 

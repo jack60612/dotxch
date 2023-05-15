@@ -4,7 +4,7 @@ from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
 from chia.util.ints import uint32, uint64
 
-from resolver.drivers.domain_outer_puzzle import DomainOuterPuzzle
+from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
 from resolver.drivers.puzzle_class import DomainMetadata
 from resolver.puzzles.domain_constants import GRACE_PERIOD, REGISTRATION_LENGTH
 from resolver.types.resolution_status_code import ResolutionStatusCode

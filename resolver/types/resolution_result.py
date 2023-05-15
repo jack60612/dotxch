@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from resolver.drivers.domain_record import DomainRecord
+from resolver.types.domain_record import DomainRecord
 from resolver.types.resolution_status_code import ResolutionStatusCode
 
 

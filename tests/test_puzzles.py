@@ -13,10 +13,10 @@ from chia.util.hash import std_hash
 from chia.util.keychain import mnemonic_to_seed
 from chia_rs import Coin
 
-from resolver.drivers.domain_inner_puzzle import DomainInnerPuzzle
-from resolver.drivers.domain_outer_puzzle import DomainOuterPuzzle
-from resolver.drivers.domain_puzzle import DomainPuzzle
-from resolver.drivers.registration_fee_puzzle import RegistrationFeePuzzle
+from resolver.drivers.domain_driver import DomainPuzzle
+from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
+from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
+from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
 from resolver.puzzles.domain_constants import REGISTRATION_FEE_ADDRESS
 from resolver.puzzles.puzzles import DOMAIN_PH_MOD, DOMAIN_PH_MOD_HASH, INNER_SINGLETON_MOD, REGISTRATION_FEE_MOD_HASH
 

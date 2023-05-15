@@ -19,10 +19,9 @@ from chia.util.ints import uint16, uint32, uint64
 from chia.wallet.derive_keys import master_sk_to_farmer_sk
 from chia.wallet.transaction_record import TransactionRecord
 
-from resolver.drivers.domain_inner_puzzle import DomainInnerPuzzle
-from resolver.drivers.domain_outer_puzzle import DomainOuterPuzzle
-from resolver.drivers.domain_puzzle import DomainPuzzle
-from resolver.drivers.domain_record import DomainRecord
+from resolver.drivers.domain_driver import DomainPuzzle
+from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
+from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
 from resolver.drivers.puzzle_class import DomainMetadata, validate_initial_spend
 from resolver.puzzles.domain_constants import (
     MAX_REGISTRATION_GAP,
@@ -30,6 +29,7 @@ from resolver.puzzles.domain_constants import (
     TOTAL_FEE_AMOUNT,
     TOTAL_NEW_DOMAIN_AMOUNT,
 )
+from resolver.types.domain_record import DomainRecord
 from resolver.types.resolution_result import ResolutionResult
 from resolver.types.resolution_status_code import ResolutionStatusCode
 
