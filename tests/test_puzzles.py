@@ -9,15 +9,14 @@ from chia.types.blockchain_format.program import Program
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend, compute_additions
 from chia.util.byte_types import hexstr_to_bytes
-from chia.util.condition_tools import conditions_dict_for_solution, created_outputs_for_conditions_dict
 from chia.util.hash import std_hash
 from chia.util.keychain import mnemonic_to_seed
 from chia_rs import Coin
 
-from resolver.drivers.domain_inner_puzzle import DomainInnerPuzzle
-from resolver.drivers.domain_outer_puzzle import DomainOuterPuzzle
-from resolver.drivers.domain_puzzle import DomainPuzzle
-from resolver.drivers.registration_fee_puzzle import RegistrationFeePuzzle
+from resolver.drivers.domain_driver import DomainPuzzle
+from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
+from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
+from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
 from resolver.puzzles.domain_constants import REGISTRATION_FEE_ADDRESS
 from resolver.puzzles.puzzles import DOMAIN_PH_MOD, DOMAIN_PH_MOD_HASH, INNER_SINGLETON_MOD, REGISTRATION_FEE_MOD_HASH
 
@@ -52,8 +51,7 @@ class TestPuzzles:
         domain_name = "jack.xch"
         reg_class = RegistrationFeePuzzle(domain_name, bytes32(b"6" * 32), bytes32(b"7" * 32), bytes32(b"8" * 32))
         cs = reg_class.to_coin_spend(example_coin)
-        c_spend_dict = conditions_dict_for_solution(cs.puzzle_reveal, cs.solution, (1 << 32) - 1)
-        r = created_outputs_for_conditions_dict(c_spend_dict, example_coin.name())
+        r = compute_additions(cs)
         assert r[1].puzzle_hash == DOMAIN_PH_MOD.curry(domain_name).get_tree_hash()
         assert (
             reg_class.generate_solution().get_tree_hash().hex()
@@ -75,26 +73,27 @@ class TestPuzzles:
             m_data,
         )
         example_coin = Coin(DOMAIN_PH_MOD_HASH, inner_puz_class.complete_puzzle_hash(), 1)
-        inner_puz_class.generate_solution_args(coin=example_coin, renew=True)
+        inner_puz_class.generate_solution_args(coin=example_coin, renew=True, new_metadata=m_data * 2)
         with pytest.raises(NotImplementedError):
             await inner_puz_class.to_spend_bundle(AugSchemeMPL.key_gen(token_bytes(32)), example_coin)
 
         cs = inner_puz_class.to_coin_spend(example_coin)
-        c_spend_dict = conditions_dict_for_solution(cs.puzzle_reveal, cs.solution, (1 << 32) - 1)
-        r = created_outputs_for_conditions_dict(c_spend_dict, example_coin.name())
+        r = compute_additions(cs)
         pre_puzzle = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
         assert (
             r[0].puzzle_hash.hex()
-            == pre_puzzle.curry(*[pre_puzzle.get_tree_hash(), pub_key, m_data]).get_tree_hash().hex()
+            == pre_puzzle.curry(*[pre_puzzle.get_tree_hash(), pub_key, m_data * 2]).get_tree_hash().hex()
         )
         assert (
             inner_puz_class.generate_solution().get_tree_hash().hex()
-            == "9d224191f9152e1f888b6823bfa9e92f922bb8dd79a8ba604fc82958348947ff"
+            == "1368f8a77e7cab0e257a77c235b25efadfe78e25f37691cb84755efaa2436658"
         )
         cs_bytes = hexstr_to_bytes(
-            "989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abead6e97b132a245f866f5bd9046c0c62c59d6865b3716bef032b53796f1e5c84c0000000000000001ff02ffff01ff02ffff01ff02ffff01ff02ffff01ff02ffff03ff8205ffffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8205ffffff04ff8202ffff8080808080ff80808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff8205ffff80808080ff80808080808080ffff01ff01808080ff808080ffff01ff02ffff03ff82017fffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff81bfffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff8080808080ff80808080ffff04ffff04ff28ffff04ff81bfff808080ffff04ffff04ff2cffff04ffff0bff0bff81bf80ff808080ffff04ffff04ff38ffff04ffff0bff05ffff0bff0bff81bf8080ff808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff808080808080ffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ff80808080ffff04ffff04ff2cffff04ffff0bff0bff81bf80ff808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff8080808080ff018080ff0180ffff04ffff01ffffff32ff473fffff0233ff3e04ffff01ff0102ffffff02ffff03ff05ffff01ff02ff26ffff04ff02ffff04ff0dffff04ffff0bff3affff0bff12ff3c80ffff0bff3affff0bff3affff0bff12ff2a80ff0980ffff0bff3aff0bffff0bff12ff8080808080ff8080808080ffff010b80ff0180ff02ff2effff04ff02ffff04ff05ffff04ff17ffff04ff2fffff04ff0bff80808080808080ffff0bff3affff0bff12ff2480ffff0bff3affff0bff3affff0bff12ff2a80ff0580ffff0bff3affff02ff26ffff04ff02ffff04ff07ffff04ffff0bff12ff1280ff8080808080ffff0bff12ff8080808080ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff3effff04ff02ffff04ff09ff80808080ffff02ff3effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080ffff04ffff01a07bb18ebcdbee14e01c44110f46c439bc96d155406e39a0adc3b21b41d49c79a2ff018080ffff04ffff01886a61636b2e786368ff018080ffff04ffff01a03b9533bca5b8bd1e1f57b6a022967e0f5c7eb95f160a4c4356a5dd654cd036ccffff04ffff01b0a0b3dda0f015e2bc83b9b5383ec7e33e17d3602d56ed657713692237a836ce065cf9f12c0816e835daefa8f22696cfceffff04ffff01ffff6161ffff626280ff0180808080ffa0989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abeff01ff80ff8080"  # noqa: E501
+            "989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abead6e97b132a245f866f5bd9046c0c62c59d6865b3716bef032b53796f1e5c84c0000000000000001ff02ffff01ff02ffff01ff02ffff01ff02ffff01ff02ffff03ff8205ffffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8205ffffff04ff8202ffff8080808080ff80808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff8205ffff80808080ff80808080808080ffff01ff01808080ff808080ffff01ff02ffff03ff82017fffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff81bfffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff8080808080ff80808080ffff04ffff04ff28ffff04ff81bfff808080ffff04ffff04ff2cffff04ffff0bff0bff81bf80ff808080ffff04ffff04ff38ffff04ffff0bff05ffff0bff0bff81bf8080ff808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ffff02ffff03ff8202ffffff018202ffffff015f80ff0180ff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff808080808080ffff01ff04ffff04ff10ffff04ff2fffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ff80808080ffff04ffff04ff2cffff04ffff0bff0bff81bf80ff808080ffff04ffff04ff34ffff04ffff02ff36ffff04ff02ffff04ff17ffff04ffff02ff3effff04ff02ffff04ff17ff80808080ffff04ffff02ff3effff04ff02ffff04ff8202ffff80808080ffff04ffff02ff3effff04ff02ffff04ff2fff80808080ff80808080808080ffff01ff01808080ff8080808080ff018080ff0180ffff04ffff01ffffff32ff473fffff0233ff3e04ffff01ff0102ffffff02ffff03ff05ffff01ff02ff26ffff04ff02ffff04ff0dffff04ffff0bff3affff0bff12ff3c80ffff0bff3affff0bff3affff0bff12ff2a80ff0980ffff0bff3aff0bffff0bff12ff8080808080ff8080808080ffff010b80ff0180ff02ff2effff04ff02ffff04ff05ffff04ff17ffff04ff2fffff04ff0bff80808080808080ffff0bff3affff0bff12ff2480ffff0bff3affff0bff3affff0bff12ff2a80ff0580ffff0bff3affff02ff26ffff04ff02ffff04ff07ffff04ffff0bff12ff1280ff8080808080ffff0bff12ff8080808080ff02ffff03ffff07ff0580ffff01ff0bffff0102ffff02ff3effff04ff02ffff04ff09ff80808080ffff02ff3effff04ff02ffff04ff0dff8080808080ffff01ff0bffff0101ff058080ff0180ff018080ffff04ffff01a07bb18ebcdbee14e01c44110f46c439bc96d155406e39a0adc3b21b41d49c79a2ff018080ffff04ffff01886a61636b2e786368ff018080ffff04ffff01a03b9533bca5b8bd1e1f57b6a022967e0f5c7eb95f160a4c4356a5dd654cd036ccffff04ffff01b0a0b3dda0f015e2bc83b9b5383ec7e33e17d3602d56ed657713692237a836ce065cf9f12c0816e835daefa8f22696cfceffff04ffff01ffff6161ffff626280ff0180808080ffa0989379ca2baa34863789a365b20764bd6aae0b7c72f5dca9de6ca1cf132d5abeff01ffffff6161ffff6262ffff6161ffff626280ff8080"  # noqa: E501
         )
-        assert domain_name == DomainInnerPuzzle.from_coin_spend(CoinSpend.from_bytes(cs_bytes)).domain_name
+        regen_inner_puz = DomainInnerPuzzle.from_coin_spend(CoinSpend.from_bytes(cs_bytes))
+        assert domain_name == regen_inner_puz.domain_name
+        assert m_data != regen_inner_puz.cur_metadata
 
     @pytest.mark.asyncio
     async def test_outer_puzzle(self) -> None:
@@ -129,7 +128,9 @@ class TestPuzzles:
         const_tuple = (DEFAULT_CONSTANTS.AGG_SIG_ME_ADDITIONAL_DATA, DEFAULT_CONSTANTS.MAX_BLOCK_COST_CLVM)
         outer_class = DomainOuterPuzzle.from_coin_spend(spend_bundle.coin_spends[1], const_tuple)
         example_outer_coin = Coin(DOMAIN_PH_MOD_HASH, outer_class.complete_puzzle_hash(), 1)
-        outer_class.domain_puzzle.generate_solution_args(renew=True, new_metadata=[("bruh", "bruh")], coin=example_outer_coin)
+        outer_class.domain_puzzle.generate_solution_args(
+            renew=True, new_metadata=[("bruh", "bruh")], coin=example_outer_coin
+        )
         # validate announcements
         assert puzzle_assertions == [
             Announcement(
@@ -152,4 +153,4 @@ class TestPuzzles:
         assert working_outer_class.domain_name == domain_name
         assert working_outer_class.puzzle_mod == outer_class.puzzle_mod
         assert working_outer_class.launcher_id == outer_class.launcher_id
-        assert working_outer_class.domain_puzzle.cur_metadata == [(b"bruh", b"bruh")]
+        assert working_outer_class.domain_puzzle.cur_metadata == [("bruh", "bruh")]

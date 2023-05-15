@@ -21,10 +21,10 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
     solution_for_singleton,
 )
 
-from resolver.drivers.domain_inner_puzzle import DomainInnerPuzzle
-from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType, program_to_list, sign_coin_spend
-from resolver.drivers.registration_fee_puzzle import RegistrationFeePuzzle
-from resolver.puzzles.puzzles import INNER_SINGLETON_MOD, REGISTRATION_FEE_MOD_HASH
+from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
+from resolver.drivers.puzzle_class import BasePuzzle, DomainMetadata, PuzzleType, sign_coin_spend
+from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
+from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 
 
 async def _renew_domain(
@@ -94,26 +94,11 @@ class DomainOuterPuzzle(BasePuzzle):
         singleton_struct, singleton_inner_puzzle = list(curried_args.as_iter())
         launcher_id = bytes32(singleton_struct.as_python()[1])  # only outer uncurry.
 
-        # 2nd layer of curried args, [PUB_KEY, METADATA]
-        singleton_base_inner_puzzle, raw_inner_curry_args = singleton_inner_puzzle.uncurry()
-        assert singleton_base_inner_puzzle.uncurry()[0] == INNER_SINGLETON_MOD  # sanity check
+        # we now get the inner solution and generate the inner coin spend.
+        inner_solution = Program(coin_spend.solution.to_program().pair[1].pair[1].pair[0])
+        inner_cs: CoinSpend = CoinSpend(coin_spend.coin, singleton_inner_puzzle, inner_solution)
 
-        # now we extract the curried args from the inner puzzle.
-        _, pub_key, metadata = program_to_list(raw_inner_curry_args)
-
-        # Lastly we get the domain name, 3rd layer of curried args. [DOMAIN_NAME]
-        domain_name = singleton_base_inner_puzzle.uncurry()[1].pair[0].atom.decode("utf-8")  # domain from puzzle.
-
-        # we now process the coin_spend and get the potentially updated args.
-        cs_solution = coin_spend.solution.to_program()
-        # we select the inner sol, then we convert it into a list.
-        _, _, sol_metadata, sol_pub_key = program_to_list(Program.to(cs_solution.pair[1].pair[1].pair[0]))
-        # now we replace the curried data with the data from the solution, if there is any.
-        pub_key = sol_pub_key if sol_pub_key else pub_key
-        metadata = sol_metadata if sol_metadata else metadata
-
-        # make finished inner puzzle.
-        inner_puzzle_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
+        inner_puzzle_class = DomainInnerPuzzle.from_coin_spend(inner_cs)
 
         # create a new lineage proof object, this is used to generate the parent coin info.
         # essentially: (parent_coin.parent_coin_id, parents_inner_puz_hash, parent_coin.amount)
@@ -181,7 +166,7 @@ class DomainOuterPuzzle(BasePuzzle):
         private_key: PrivateKey,
         domain_singleton: Coin,
         parent_fee_coin: Coin,
-        new_metadata: Optional[list[tuple[str, str]]] = None,
+        new_metadata: Optional[DomainMetadata] = None,
     ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
         if self.lineage_proof.parent_name is None:
             raise ValueError("Cannot renew a domain that has never had an initial spend.")
@@ -209,7 +194,7 @@ class DomainOuterPuzzle(BasePuzzle):
         self,
         private_key: PrivateKey,
         domain_singleton: Coin,
-        new_metadata: list[tuple[str, str]],
+        new_metadata: DomainMetadata,
     ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
         assert self.domain_name is not None
         # first we set inner puzzle to change metadata.

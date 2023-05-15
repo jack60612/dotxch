@@ -7,10 +7,6 @@ from resolver.puzzles.domain_constants import REGISTRATION_FEE_ADDRESS, REGISTRA
 
 
 def load_clvm_wrapper(clvm_filename: Any) -> Program:
-    # from pathlib import Path
-    # import cdv.clibs as std_lib
-    # from cdv.util.load_clvm import load_clvm
-    # clibs_path: Path = Path(std_lib.__file__).parent
     return load_clvm(clvm_filename, __name__, include_standard_libraries=True)
 
 
