@@ -43,8 +43,12 @@ setup(
     ),
     packages=[
         "resolver",
+        "resolver.api",
         "resolver.cmds",
+        "resolver.core",
+        "resolver.drivers",
         "resolver.puzzles",
+        "resolver.types",
     ],
     entry_points={
         "console_scripts": [
