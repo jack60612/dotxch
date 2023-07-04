@@ -479,9 +479,9 @@ class WalletClient:
         wallet_id: int,
         domain_name: str,
         fee: uint64,
+        new_metadata: Optional[DomainMetadata] = None,
         private_key: Optional[PrivateKey] = None,
         launcher_id: Optional[bytes32] = None,
-        new_metadata: Optional[DomainMetadata] = None,
     ) -> Optional[tuple[TransactionRecord, SpendBundle]]:
         """
         This function renews a domain name and returns the spend bundle that would create it.
@@ -597,7 +597,6 @@ class WalletClient:
         new_pubkey: G1Element,
         private_key: Optional[PrivateKey] = None,
         launcher_id: Optional[bytes32] = None,
-        ignore_validity: bool = False,
     ) -> tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
         """
         This function updates the metadata of  a domain name and returns the spend bundle that would create it.
@@ -607,7 +606,6 @@ class WalletClient:
         :param domain_name: the domain_name to change the metadata of
         :param fee: transaction fee
         :param launcher_id: the specific launcher_id to use.
-        :param ignore_validity: if this is true, then we don't check if a launcher is the real domain.
         :param new_metadata: a list of tuples of metadata to add to the domain name.
         :return: SpendBundle if successful, None otherwise.
         """
