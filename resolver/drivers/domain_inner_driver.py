@@ -6,8 +6,9 @@ from chia.types.blockchain_format.program import Program
 from chia.types.coin_spend import CoinSpend
 from chia.types.spend_bundle import SpendBundle
 
-from resolver.drivers.puzzle_class import BasePuzzle, DomainMetadata, PuzzleType, RawDomainMetadata, fix_metadata
+from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType
 from resolver.puzzles.puzzles import INNER_SINGLETON_MOD
+from resolver.types.domain_metadata import DomainMetadataBytes, DomainMetadataRaw, metadata_bytes_to_raw
 
 
 class DomainInnerPuzzle(BasePuzzle):
@@ -15,10 +16,10 @@ class DomainInnerPuzzle(BasePuzzle):
         self,
         domain_name: str,
         pub_key: G1Element,
-        metadata: DomainMetadata,
+        metadata: DomainMetadataRaw,
     ):
         self.cur_pub_key: G1Element = pub_key
-        self.cur_metadata: DomainMetadata = metadata
+        self.cur_metadata: DomainMetadataRaw = metadata
         # because the puzzle needs its hash with the domain,
         # we calculate it below, and modify the puzzle, unlike other drivers.
         puzzle_mod = INNER_SINGLETON_MOD.curry(Program.to(domain_name))
@@ -38,14 +39,14 @@ class DomainInnerPuzzle(BasePuzzle):
         # check solution for changed args, and if they were changed, use them instead.
         _, _, sol_metadata, sol_pub_key = spend_super_class.solution_args
         pub_key = sol_pub_key if sol_pub_key else existing_pub_key
-        metadata: RawDomainMetadata = sol_metadata if sol_metadata else existing_metadata
-        return cls(spend_super_class.domain_name, pub_key, fix_metadata(metadata))
+        metadata: DomainMetadataBytes = sol_metadata if sol_metadata else existing_metadata
+        return cls(spend_super_class.domain_name, pub_key, metadata_bytes_to_raw(metadata))
 
     def generate_solution_args(
         self,
         coin: Coin,
         new_pubkey: Optional[G1Element] = None,
-        new_metadata: Optional[DomainMetadata] = None,
+        new_metadata: Optional[DomainMetadataRaw] = None,
         renew: bool = False,
     ) -> None:
         # Args are: Renew, new_metadata, new_pubkey

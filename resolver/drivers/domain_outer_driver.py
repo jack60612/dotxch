@@ -22,9 +22,10 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
 )
 
 from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
-from resolver.drivers.puzzle_class import BasePuzzle, DomainMetadata, PuzzleType, sign_coin_spend
+from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType, sign_coin_spend
 from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
+from resolver.types.domain_metadata import DomainMetadataRaw
 
 
 async def _renew_domain(
@@ -166,7 +167,7 @@ class DomainOuterPuzzle(BasePuzzle):
         private_key: PrivateKey,
         domain_singleton: Coin,
         parent_fee_coin: Coin,
-        new_metadata: Optional[DomainMetadata] = None,
+        new_metadata: Optional[DomainMetadataRaw] = None,
     ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
         if self.lineage_proof.parent_name is None:
             raise ValueError("Cannot renew a domain that has never had an initial spend.")
@@ -194,7 +195,7 @@ class DomainOuterPuzzle(BasePuzzle):
         self,
         private_key: PrivateKey,
         domain_singleton: Coin,
-        new_metadata: DomainMetadata,
+        new_metadata: DomainMetadataRaw,
     ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
         assert self.domain_name is not None
         # first we set inner puzzle to change metadata.
@@ -214,7 +215,7 @@ class DomainOuterPuzzle(BasePuzzle):
         self,
         private_key: PrivateKey,
         domain_singleton: Coin,
-        new_metadata: DomainMetadata,
+        new_metadata: DomainMetadataRaw,
         new_pubkey: G1Element,
     ) -> tuple[list[Announcement], list[dict[str, Any]], SpendBundle]:
         assert self.domain_name is not None

@@ -23,8 +23,9 @@ from chia.wallet.transaction_record import TransactionRecord
 from resolver.drivers.domain_driver import DomainPuzzle
 from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
 from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
-from resolver.drivers.puzzle_class import DomainMetadata, validate_initial_spend
+from resolver.drivers.puzzle_class import validate_initial_spend
 from resolver.puzzles.domain_constants import REGISTRATION_LENGTH, TOTAL_FEE_AMOUNT, TOTAL_NEW_DOMAIN_AMOUNT
+from resolver.types.domain_metadata import DomainMetadataRaw
 from resolver.types.domain_record import DomainRecord
 from resolver.types.resolution_result import ResolutionResult
 from resolver.types.resolution_status_code import ResolutionStatusCode
@@ -406,7 +407,7 @@ class WalletClient:
         self,
         wallet_id: int,
         domain_name: str,
-        metadata: DomainMetadata,
+        metadata: DomainMetadataRaw,
         fee: uint64,
         skip_existing_check: bool = False,
         pub_key: Optional[G1Element] = None,
@@ -479,7 +480,7 @@ class WalletClient:
         wallet_id: int,
         domain_name: str,
         fee: uint64,
-        new_metadata: Optional[DomainMetadata] = None,
+        new_metadata: Optional[DomainMetadataRaw] = None,
         private_key: Optional[PrivateKey] = None,
         launcher_id: Optional[bytes32] = None,
     ) -> Optional[tuple[TransactionRecord, SpendBundle]]:
@@ -539,7 +540,7 @@ class WalletClient:
         self,
         domain_name: str,
         fee: uint64,
-        new_metadata: DomainMetadata,
+        new_metadata: DomainMetadataRaw,
         private_key: Optional[PrivateKey] = None,
         launcher_id: Optional[bytes32] = None,
     ) -> tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
@@ -593,7 +594,7 @@ class WalletClient:
         self,
         domain_name: str,
         fee: uint64,
-        new_metadata: DomainMetadata,
+        new_metadata: DomainMetadataRaw,
         new_pubkey: G1Element,
         private_key: Optional[PrivateKey] = None,
         launcher_id: Optional[bytes32] = None,

@@ -5,8 +5,8 @@ from chia.types.coin_spend import CoinSpend
 from chia.util.ints import uint32, uint64
 
 from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
-from resolver.drivers.puzzle_class import DomainMetadata
 from resolver.puzzles.domain_constants import GRACE_PERIOD
+from resolver.types.domain_metadata import DomainMetadataRaw
 from resolver.types.resolution_status_code import ResolutionStatusCode
 
 
@@ -65,7 +65,7 @@ class DomainRecord:
         return self.domain_class.launcher_id
 
     @property
-    def cur_metadata(self) -> DomainMetadata:
+    def cur_metadata(self) -> DomainMetadataRaw:
         return self.domain_class.domain_puzzle.cur_metadata
 
     @property
