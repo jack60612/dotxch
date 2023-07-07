@@ -72,26 +72,26 @@ class DomainMetadata:
         return raw
 
     @classmethod
-    def from_dict(cls, json_dict: DomainMetadataDict) -> "DomainMetadata":
-        metadata_version = json_dict["metadata_version"]
+    def from_dict(cls, meta_dict: DomainMetadataDict) -> "DomainMetadata":
+        metadata_version = meta_dict["metadata_version"]
         assert type(metadata_version) == str
         if metadata_version != METADATA_FORMAT_VERSION:
             raise ValueError(f"Unknown metadata version: {metadata_version}")
-        bech32_prim_addr = json_dict["primary_address"]
+        bech32_prim_addr = meta_dict["primary_address"]
         assert type(bech32_prim_addr) == str
         primary_address: bytes32 = decode_puzzle_hash(bech32_prim_addr)  # addr to ph
         # addr to ph
-        assert type(json_dict["chain_records"]) == dict
+        assert type(meta_dict["chain_records"]) == dict
         chain_records: dict[str, bytes32] = {}
-        for k, v in json_dict["chain_records"].items():
+        for k, v in meta_dict["chain_records"].items():
             # validate prefix and key
             if "xch" not in k.lower() or "nft" not in k.lower() or "did" not in k.lower():
                 raise ValueError(f"Invalid chain record key: {k}, the key must contain xch, nft or did")
             chain_records[k] = decode_puzzle_hash(v)
 
-        dns_records = json_dict.get("dns_records", {})
+        dns_records = meta_dict.get("dns_records", {})
         assert type(dns_records) == dict
-        other_data = json_dict.get("other_data", {})
+        other_data = meta_dict.get("other_data", {})
         assert type(other_data) == dict
         return cls(metadata_version, primary_address, chain_records, dns_records, other_data)
 
@@ -107,7 +107,7 @@ class DomainMetadata:
                 chain_records[k] = encode_puzzle_hash(v, "did:chia:")
             else:
                 raise ValueError(f"Invalid chain record key: {k}, the key must contain xch, nft or did")
-        json_dict: DomainMetadataDict = DomainMetadataDict(
+        meta_dict: DomainMetadataDict = DomainMetadataDict(
             {
                 "metadata_version": METADATA_FORMAT_VERSION,
                 "primary_address": encode_puzzle_hash(self.primary_address, "xch"),
@@ -116,4 +116,4 @@ class DomainMetadata:
                 "other_data": self.other_data,
             }
         )
-        return json_dict
+        return meta_dict
