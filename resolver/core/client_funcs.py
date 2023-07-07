@@ -25,7 +25,7 @@ from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
 from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
 from resolver.drivers.puzzle_class import validate_initial_spend
 from resolver.puzzles.domain_constants import REGISTRATION_LENGTH, TOTAL_FEE_AMOUNT, TOTAL_NEW_DOMAIN_AMOUNT
-from resolver.types.domain_metadata import DomainMetadataRaw
+from resolver.types.domain_metadata import DomainMetadata, DomainMetadataRaw
 from resolver.types.domain_record import DomainRecord
 from resolver.types.resolution_result import ResolutionResult
 from resolver.types.resolution_status_code import ResolutionStatusCode
@@ -407,11 +407,11 @@ class WalletClient:
         self,
         wallet_id: int,
         domain_name: str,
-        metadata: DomainMetadataRaw,
+        metadata: DomainMetadata,
         fee: uint64,
         skip_existing_check: bool = False,
         pub_key: Optional[G1Element] = None,
-    ) -> Optional[tuple[TransactionRecord, SpendBundle]]:
+    ) -> tuple[TransactionRecord, SpendBundle]:
         """
         This function creates a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless skip_existing_check is True.
@@ -436,10 +436,10 @@ class WalletClient:
             all_res_records = await self.node_client.discover_all_domains(domain_name)
             final_record = await self.node_client.filter_domains(all_res_records)
             if final_record[0].domain_record is not None:  # Domain already exists
-                return None
+                raise ValueError(f"Domain {domain_name} already exists.")
 
         # now that we have checked, we can create the inner domain puzzle.
-        inner_class = DomainInnerPuzzle(domain_name, pub_key, metadata)
+        inner_class = DomainInnerPuzzle(domain_name, pub_key, metadata.to_raw())
         total_amount = fee + TOTAL_NEW_DOMAIN_AMOUNT
         # now we find a coin to use.
         removals: list[Coin] = await self.client.select_coins(
@@ -478,22 +478,20 @@ class WalletClient:
     async def renew_domain(
         self,
         wallet_id: int,
-        domain_name: str,
+        domain_record: DomainRecord,
         fee: uint64,
-        new_metadata: Optional[DomainMetadataRaw] = None,
+        new_metadata: Optional[DomainMetadata] = None,
         private_key: Optional[PrivateKey] = None,
-        launcher_id: Optional[bytes32] = None,
-    ) -> Optional[tuple[TransactionRecord, SpendBundle]]:
+    ) -> tuple[TransactionRecord, SpendBundle]:
         """
         This function renews a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless a launcher_id is provided.
         :param private_key: (Optional) Default is farmer private key.
         :param wallet_id: the id of the wallet
-        :param domain_name: the domain_name to renew
+        :param domain_record: The DomainRecord for the domain to renew
         :param fee: transaction fee
-        :param launcher_id: the specific launcher_id to use.
         :param new_metadata: a list of tuples of metadata to add to the domain name.
-        :return: SpendBundle if successful, None otherwise.
+        :return: SpendBundle and fee tx
         """
         if private_key is None:
             # temporary hack to get a key, we can change later.
@@ -503,12 +501,8 @@ class WalletClient:
         if self.client is None:
             raise ValueError("Not Connected to a Wallet.")
 
-        cur_record = await self.node_client.resolve_domain(domain_name, launcher_id, True)
-        if cur_record.domain_record is None:
-            return None
-        domain_rec: DomainRecord = cur_record.domain_record
-        outer_class: DomainOuterPuzzle = domain_rec.domain_class
-        latest_coin: Coin = compute_additions(domain_rec.full_spend)[0]  # only 1 coin is ever created.
+        outer_class: DomainOuterPuzzle = domain_record.domain_class
+        latest_coin: Coin = compute_additions(domain_record.full_spend)[0]  # only 1 coin is ever created.
 
         total_amount = fee + TOTAL_FEE_AMOUNT
         # now we find a coin to use.
@@ -519,9 +513,10 @@ class WalletClient:
             raise ValueError("Too many coins selected, please combine the coins in your wallet.")
         assert removals[0].amount >= total_amount
 
+        raw_metadata: Optional[DomainMetadataRaw] = new_metadata.to_raw() if new_metadata is not None else None
         # now we get the args to create a spend bundle.
         (puzzle_assertions, primaries, spend_bundle) = await outer_class.renew_domain(
-            private_key, latest_coin, removals[0], new_metadata
+            private_key, latest_coin, removals[0], raw_metadata
         )
         # now we create a transaction.
         tx: TransactionRecord = await self.get_std_fee_tx(
@@ -538,21 +533,19 @@ class WalletClient:
 
     async def update_metadata(
         self,
-        domain_name: str,
+        domain_record: DomainRecord,
         fee: uint64,
-        new_metadata: DomainMetadataRaw,
+        new_metadata: DomainMetadata,
         private_key: Optional[PrivateKey] = None,
-        launcher_id: Optional[bytes32] = None,
-    ) -> tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
+    ) -> tuple[Optional[TransactionRecord], SpendBundle]:
         """
         This function updates the metadata of  a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless a launcher_id is provided.
-        :param private_key: (Optional) Default is farmer private key.
-        :param domain_name: the domain_name to change the metadata of
+        :param domain_record: The DomainRecord for the domain to renew
         :param fee: transaction fee
-        :param launcher_id: the specific launcher_id to use.
         :param new_metadata: a list of tuples of metadata to add to the domain name.
-        :return: SpendBundle if successful, None otherwise.
+        :param private_key: (Optional) Default is farmer private key.
+        :return: SpendBundle and fee tx
         """
         if private_key is None:
             # temporary hack to get a key, we can change later.
@@ -562,18 +555,14 @@ class WalletClient:
         if self.client is None:
             raise ValueError("Not Connected to a Wallet.")
 
-        cur_record = await self.node_client.resolve_domain(domain_name, launcher_id, True)
-        if cur_record.domain_record is None:
-            return None, None
-        domain_rec: DomainRecord = cur_record.domain_record
-        outer_class: DomainOuterPuzzle = domain_rec.domain_class
-        latest_coin: Coin = compute_additions(domain_rec.full_spend)[0]  # only 1 coin is ever created.
+        outer_class: DomainOuterPuzzle = domain_record.domain_class
+        latest_coin: Coin = compute_additions(domain_record.full_spend)[0]  # only 1 coin is ever created.
 
         # now we get the args to create a spend bundle.
         (puzzle_assertions, primaries, final_sb) = await outer_class.update_metadata(
             private_key,
             latest_coin,
-            new_metadata,
+            new_metadata.to_raw(),
         )
 
         tx: Optional[TransactionRecord] = None
@@ -592,23 +581,21 @@ class WalletClient:
 
     async def update_pubkey(
         self,
-        domain_name: str,
+        domain_record: DomainRecord,
         fee: uint64,
-        new_metadata: DomainMetadataRaw,
+        new_metadata: DomainMetadata,
         new_pubkey: G1Element,
         private_key: Optional[PrivateKey] = None,
-        launcher_id: Optional[bytes32] = None,
-    ) -> tuple[Optional[TransactionRecord], Optional[SpendBundle]]:
+    ) -> tuple[Optional[TransactionRecord], SpendBundle]:
         """
         This function updates the metadata of  a domain name and returns the spend bundle that would create it.
         If a non expired domain name already exists, it will return None, unless a launcher_id is provided.
         :param private_key: (Optional) Default is farmer private key.
         :param new_pubkey: New pubkey.
-        :param domain_name: the domain_name to change the metadata of
+        :param domain_record: The DomainRecord for the domain to renew
         :param fee: transaction fee
-        :param launcher_id: the specific launcher_id to use.
         :param new_metadata: a list of tuples of metadata to add to the domain name.
-        :return: SpendBundle if successful, None otherwise.
+        :return: SpendBundle and fee tx
         """
         if private_key is None:
             # temporary hack to get a key, we can change later.
@@ -618,18 +605,14 @@ class WalletClient:
         if self.client is None:
             raise ValueError("Not Connected to a Wallet.")
 
-        cur_record = await self.node_client.resolve_domain(domain_name, launcher_id, True)
-        if cur_record.domain_record is None:
-            return None, None
-        domain_rec: DomainRecord = cur_record.domain_record
-        outer_class: DomainOuterPuzzle = domain_rec.domain_class
-        latest_coin: Coin = compute_additions(domain_rec.full_spend)[0]  # only 1 coin is ever created.
+        outer_class: DomainOuterPuzzle = domain_record.domain_class
+        latest_coin: Coin = compute_additions(domain_record.full_spend)[0]  # only 1 coin is ever created.
 
         # now we get the args to create a spend bundle.
         (puzzle_assertions, primaries, final_sb) = await outer_class.update_pubkey(
             private_key,
             latest_coin,
-            new_metadata,
+            new_metadata.to_raw(),
             new_pubkey,
         )
 
