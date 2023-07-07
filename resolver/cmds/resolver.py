@@ -5,7 +5,7 @@ from typing import Optional
 import click
 from chia.util.default_root import DEFAULT_ROOT_PATH, SIMULATOR_ROOT_PATH
 
-from resolver.cmds.resolver_funcs import register, renew, resolve, transfer, update
+from resolver.cmds.resolver_funcs import register, renew, resolve, transfer, update, xch_fee_to_mojo, yaml_to_metadata
 
 
 @click.group()
@@ -18,6 +18,17 @@ def resolver(ctx: click.Context, root_path: Path, simulator: bool) -> None:
     """
     ctx.ensure_object(dict)
     ctx.obj["root_path"] = root_path if not simulator else SIMULATOR_ROOT_PATH / "main"
+
+
+@resolver.command("validate")
+@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
+def validate_cmd(metadata: str) -> None:
+    try:
+        yaml_to_metadata(metadata)
+    except Exception as e:
+        print(f"Metadata validation failed: {e}")
+        return
+    print("Metadata validation successful")
 
 
 # Node Only Commands
@@ -46,7 +57,9 @@ def resolve_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, required=True)
+@click.option(
+    "-m", "--metadata", type=str, required=True, description="Path to YAML file or a YAML string with metadata"
+)
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-s", "--skip_existing_check", is_flag=True, default=False)
 def register_cmd(
@@ -69,8 +82,8 @@ def register_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            metadata,
-            fee,
+            yaml_to_metadata(metadata),
+            xch_fee_to_mojo(fee),
             skip_existing_check,
         )
     )
@@ -83,7 +96,9 @@ def register_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, default=None)
+@click.option(
+    "-m", "--metadata", type=str, default=None, description="Path to YAML file or a YAML string with metadata"
+)
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 def renew_cmd(
@@ -106,8 +121,8 @@ def renew_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            metadata,
-            fee,
+            yaml_to_metadata(metadata) if metadata else None,
+            xch_fee_to_mojo(fee),
             launcher_id,
         )
     )
@@ -120,7 +135,9 @@ def renew_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, required=True)
+@click.option(
+    "-m", "--metadata", type=str, required=True, description="Path to YAML file or a YAML string with metadata"
+)
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 def update_cmd(
@@ -143,8 +160,8 @@ def update_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            metadata,
-            fee,
+            yaml_to_metadata(metadata),
+            xch_fee_to_mojo(fee),
             launcher_id,
         )
     )
@@ -157,7 +174,9 @@ def update_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, required=True)
+@click.option(
+    "-m", "--metadata", type=str, required=True, description="Path to YAML file or a YAML string with metadata"
+)
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-k", "--new-pubkey", type=str, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
@@ -182,8 +201,8 @@ def transfer_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            metadata,
-            fee,
+            yaml_to_metadata(metadata),
+            xch_fee_to_mojo(fee),
             new_pubkey,
             launcher_id,
         )
