@@ -24,6 +24,7 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
 from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
 from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType, sign_coin_spend
 from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
+from resolver.puzzles.domain_constants import PUZZLE_VERSION
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 from resolver.types.domain_metadata import DomainMetadataRaw
 
@@ -116,12 +117,16 @@ class DomainOuterPuzzle(BasePuzzle):
         inner_puzzle: DomainInnerPuzzle,
         base_coin: Coin,
     ) -> tuple[list[Announcement], list[Announcement], list[dict[str, Any]], SpendBundle]:
+        assert inner_puzzle.domain_name is not None
         if not base_coin.amount >= 10000000002:
             # 10000000001 is for the fee ph, and 1 is for the singleton.
             raise ValueError("Base coin must be at least 1000000002 mojo's")
         # we create the singleton coin
         _, launcher_spend = launch_conditions_and_coinsol(
-            base_coin, inner_puzzle.complete_puzzle(), inner_puzzle.cur_metadata, uint64(1)
+            base_coin,
+            inner_puzzle.complete_puzzle(),
+            [("version", PUZZLE_VERSION), ("domain_name", inner_puzzle.domain_name)],
+            uint64(1),
         )
         launcher_coin = launcher_spend.coin  # the first child of the base coin.
         # we create the spend bundle to create the singleton coin from the launcher.
@@ -144,7 +149,6 @@ class DomainOuterPuzzle(BasePuzzle):
         domain_spend_bundle = await sign_coin_spend(sig_additional_data, max_block_cost, domain_cs, private_key)
 
         # now we create the fee puzzle spend / renewal.
-        assert inner_puzzle.domain_name is not None
         reg_fee_puzzle = RegistrationFeePuzzle(
             inner_puzzle.domain_name,
             outer_puzzle_reveal.get_tree_hash(),

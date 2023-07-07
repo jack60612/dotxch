@@ -8,7 +8,7 @@ from chia.types.spend_bundle import SpendBundle
 
 from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType
 from resolver.puzzles.puzzles import INNER_SINGLETON_MOD
-from resolver.types.domain_metadata import DomainMetadataBytes, DomainMetadataRaw, metadata_bytes_to_raw
+from resolver.types.domain_metadata import DomainMetadataRaw, decode_metadata_keys
 
 
 class DomainInnerPuzzle(BasePuzzle):
@@ -39,8 +39,8 @@ class DomainInnerPuzzle(BasePuzzle):
         # check solution for changed args, and if they were changed, use them instead.
         _, _, sol_metadata, sol_pub_key = spend_super_class.solution_args
         pub_key = sol_pub_key if sol_pub_key else existing_pub_key
-        metadata: DomainMetadataBytes = sol_metadata if sol_metadata else existing_metadata
-        return cls(spend_super_class.domain_name, pub_key, metadata_bytes_to_raw(metadata))
+        clvm_metadata: list[tuple[bytes, bytes]] = sol_metadata if sol_metadata else existing_metadata
+        return cls(spend_super_class.domain_name, pub_key, decode_metadata_keys(clvm_metadata))
 
     def generate_solution_args(
         self,
