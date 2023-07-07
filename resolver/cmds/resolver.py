@@ -58,7 +58,7 @@ def resolve_cmd(
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
 @click.option(
-    "-m", "--metadata", type=str, required=True, description="Path to YAML file or a YAML string with metadata"
+    "-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata"
 )
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-s", "--skip_existing_check", is_flag=True, default=False)
@@ -97,7 +97,7 @@ def register_cmd(
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
 @click.option(
-    "-m", "--metadata", type=str, default=None, description="Path to YAML file or a YAML string with metadata"
+    "-m", "--metadata", type=str, default=None, help="Path to YAML file or a YAML string with metadata"
 )
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
@@ -136,7 +136,7 @@ def renew_cmd(
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
 @click.option(
-    "-m", "--metadata", type=str, required=True, description="Path to YAML file or a YAML string with metadata"
+    "-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata"
 )
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
@@ -175,7 +175,7 @@ def update_cmd(
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
 @click.option(
-    "-m", "--metadata", type=str, required=True, description="Path to YAML file or a YAML string with metadata"
+    "-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata"
 )
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-k", "--new-pubkey", type=str, required=True)
