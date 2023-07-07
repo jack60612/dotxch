@@ -23,10 +23,12 @@ def resolver(ctx: click.Context, root_path: Path, simulator: bool) -> None:
 @resolver.command("validate")
 @click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
 def validate_cmd(metadata: str) -> None:
+    import traceback
+
     try:
         yaml_to_metadata(metadata)
-    except Exception as e:
-        print(f"Metadata validation failed: {e}")
+    except Exception:
+        print(f"Metadata validation failed: {traceback.format_exc()}")
         return
     print("Metadata validation successful")
 
@@ -57,9 +59,7 @@ def resolve_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option(
-    "-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata"
-)
+@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-s", "--skip_existing_check", is_flag=True, default=False)
 def register_cmd(
@@ -96,9 +96,7 @@ def register_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option(
-    "-m", "--metadata", type=str, default=None, help="Path to YAML file or a YAML string with metadata"
-)
+@click.option("-m", "--metadata", type=str, default=None, help="Path to YAML file or a YAML string with metadata")
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 def renew_cmd(
@@ -135,9 +133,7 @@ def renew_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option(
-    "-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata"
-)
+@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 def update_cmd(
@@ -174,9 +170,7 @@ def update_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option(
-    "-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata"
-)
+@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
 @click.option("-p", "--fee", type=int, required=True)
 @click.option("-k", "--new-pubkey", type=str, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
