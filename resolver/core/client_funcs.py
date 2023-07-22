@@ -182,7 +182,7 @@ class NodeClient:
     @staticmethod
     def _calculate_expiration_timestamp(creation_timestamp: uint64, renewal_timestamps: list[uint64]) -> uint64:
         # the creation timestamp is the starting point
-        return uint64(creation_timestamp + ((len(renewal_timestamps) - 1) * REGISTRATION_LENGTH))
+        return uint64(creation_timestamp + ((len(renewal_timestamps)) * REGISTRATION_LENGTH))
 
     async def get_latest_domain_state(self, res_result: ResolutionResult) -> ResolutionResult:
         """

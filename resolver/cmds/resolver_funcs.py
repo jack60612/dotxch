@@ -1,15 +1,17 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, AsyncIterator, Dict, Optional, Tuple, Union
 
 from blspy import G1Element, PrivateKey
 from chia.cmds.units import units
 from chia.types.blockchain_format.sized_bytes import bytes32
+from chia.util.byte_types import hexstr_to_bytes
 from chia.util.config import load_config
 from chia.util.default_root import DEFAULT_ROOT_PATH
 from chia.util.ints import uint16, uint64
-from yaml import safe_load
+from yaml import dump, safe_load
 
 from resolver.core.client_funcs import NodeClient, WalletClient
 from resolver.puzzles.domain_constants import TOTAL_FEE_AMOUNT, TOTAL_NEW_DOMAIN_AMOUNT
@@ -58,11 +60,11 @@ def timestamp_to_human(timestamp: Union[uint64, int, float]) -> str:
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def xch_fee_to_mojo(xch_fee: float) -> uint64:
+def xch_fee_to_mojo(xch_fee: Decimal) -> uint64:
     return uint64(xch_fee * units["chia"])
 
 
-def yaml_to_dict(yaml_metadata: str) -> DomainMetadataDict:
+def yaml_to_dict(yaml_metadata: str) -> dict[str, Any]:
     """Loads a file or string containing YAML metadata."""
     if yaml_metadata.endswith(".yaml") or yaml_metadata.endswith(".yml"):
         with open(yaml_metadata, "r") as f:
@@ -72,13 +74,14 @@ def yaml_to_dict(yaml_metadata: str) -> DomainMetadataDict:
 
 def yaml_to_metadata(yaml_metadata: str) -> DomainMetadata:
     """Loads a file or string containing YAML metadata and returns a DomainMetadata object."""
-    meta_dict = yaml_to_dict(yaml_metadata)
+    meta_dict = DomainMetadataDict(yaml_to_dict(yaml_metadata))
     return DomainMetadata.from_dict(meta_dict)
 
 
 def print_domain_record(domain_record: DomainRecord, print_metadata: bool = False) -> None:
     print("Domain information:\n")
     print(f"Domain name: {domain_record.domain_name}")
+    print(f"Public key: 0x{domain_record.domain_class.domain_puzzle.cur_pub_key.__bytes__().hex()}")
     print(f"Launcher ID: 0x{domain_record.launcher_id.hex()}\n\n")
 
     print("Registration information:\n")
@@ -87,9 +90,9 @@ def print_domain_record(domain_record: DomainRecord, print_metadata: bool = Fals
     print(f" Last renewal was at block: {domain_record.registration_update_height}\n\n")
 
     if print_metadata:
-        print("Metadata information:\n")
-        print(f" Metadata: {domain_record.domain_metadata.to_dict()}")
-        print(f"\nLast Metadata update was at block: {domain_record.state_update_height}")
+        print("Metadata information:")
+        print(f"\n{dump(domain_record.domain_metadata.to_dict())}")
+        print(f"Last Metadata update was at block: {domain_record.state_update_height}")
 
 
 async def resolve(
@@ -195,8 +198,8 @@ async def renew(
         if cur_record.domain_record is None:
             raise ValueError(f"Domain {domain_name} does not exist.")
         if (
-            cur_record.status_code is ResolutionStatusCode.LATEST
-            or cur_record.status_code is ResolutionStatusCode.GRACE_PERIOD
+            cur_record.status_code != ResolutionStatusCode.LATEST
+            and cur_record.status_code != ResolutionStatusCode.GRACE_PERIOD
         ):
             raise ValueError(
                 f"Domain {domain_name} is not in a state where it can be renewed, "
@@ -294,7 +297,7 @@ async def transfer(
         launcher_id_hex: Optional[bytes32] = None
         if launcher_id is not None:
             launcher_id_hex = bytes32.fromhex(launcher_id)
-        new_pubkey = G1Element.from_bytes(bytes.fromhex(new_pubkey_str))
+        new_pubkey = G1Element.from_bytes(hexstr_to_bytes(new_pubkey_str))
 
         # attempt to resolve the domain to check if it exists
         cur_record = await wallet_client.node_client.resolve_domain(domain_name, launcher_id_hex, grace_period=False)

@@ -1,11 +1,15 @@
 import asyncio
+from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
 import click
 from chia.util.default_root import DEFAULT_ROOT_PATH, SIMULATOR_ROOT_PATH
 
-from resolver.cmds.resolver_funcs import register, renew, resolve, transfer, update, xch_fee_to_mojo, yaml_to_metadata
+from resolver.cmds.click_types import DOMAIN_METADATA_TYPE
+from resolver.cmds.metadata import metadata
+from resolver.cmds.resolver_funcs import register, renew, resolve, transfer, update, xch_fee_to_mojo
+from resolver.types.domain_metadata import DomainMetadata
 
 
 @click.group()
@@ -14,23 +18,10 @@ from resolver.cmds.resolver_funcs import register, renew, resolve, transfer, upd
 @click.option("--simulator", is_flag=True, default=False, hidden=True)
 def resolver(ctx: click.Context, root_path: Path, simulator: bool) -> None:
     """
-    This is the entry point for the resolver CLI.
+    These commands allow you to interact with on chain domain singletons.
     """
     ctx.ensure_object(dict)
     ctx.obj["root_path"] = root_path if not simulator else SIMULATOR_ROOT_PATH / "main"
-
-
-@resolver.command("validate")
-@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
-def validate_cmd(metadata: str) -> None:
-    import traceback
-
-    try:
-        yaml_to_metadata(metadata)
-    except Exception:
-        print(f"Metadata validation failed: {traceback.format_exc()}")
-        return
-    print("Metadata validation successful")
 
 
 # Node Only Commands
@@ -47,6 +38,9 @@ def resolve_cmd(
     launcher_id: Optional[str],
     include_grace_period: bool,
 ) -> None:
+    """
+    Gets the current state and metadata of a domain.
+    """
     root_path = ctx.obj["root_path"]
     asyncio.run(resolve(root_path, full_node_rpc_port, domain_name, launcher_id, include_grace_period))
 
@@ -59,8 +53,14 @@ def resolve_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
-@click.option("-p", "--fee", type=int, required=True)
+@click.option(
+    "-m",
+    "--metadata",
+    type=DOMAIN_METADATA_TYPE,
+    required=True,
+    help="Path to YAML file or a YAML string with metadata",
+)
+@click.option("-p", "--fee", type=Decimal, required=True)
 @click.option("-s", "--skip_existing_check", is_flag=True, default=False)
 def register_cmd(
     ctx: click.Context,
@@ -69,10 +69,13 @@ def register_cmd(
     fingerprint: int,
     wallet_id: int,
     domain_name: str,
-    metadata: str,
-    fee: int,
+    metadata: DomainMetadata,
+    fee: Decimal,
     skip_existing_check: bool,
 ) -> None:
+    """
+    Registers a new domain.
+    """
     root_path = ctx.obj["root_path"]
     asyncio.run(
         register(
@@ -82,7 +85,7 @@ def register_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            yaml_to_metadata(metadata),
+            metadata,
             xch_fee_to_mojo(fee),
             skip_existing_check,
         )
@@ -96,8 +99,10 @@ def register_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, default=None, help="Path to YAML file or a YAML string with metadata")
-@click.option("-p", "--fee", type=int, required=True)
+@click.option(
+    "-m", "--metadata", type=DOMAIN_METADATA_TYPE, default=None, help="Path to YAML file or a YAML string with metadata"
+)
+@click.option("-p", "--fee", type=Decimal, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 def renew_cmd(
     ctx: click.Context,
@@ -106,10 +111,13 @@ def renew_cmd(
     fingerprint: int,
     wallet_id: int,
     domain_name: str,
-    metadata: Optional[str],
-    fee: int,
+    metadata: Optional[DomainMetadata],
+    fee: Decimal,
     launcher_id: Optional[str],
 ) -> None:
+    """
+    Renews a domain.
+    """
     root_path = ctx.obj["root_path"]
     asyncio.run(
         renew(
@@ -119,7 +127,7 @@ def renew_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            yaml_to_metadata(metadata) if metadata else None,
+            metadata,
             xch_fee_to_mojo(fee),
             launcher_id,
         )
@@ -133,8 +141,14 @@ def renew_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
-@click.option("-p", "--fee", type=int, required=True)
+@click.option(
+    "-m",
+    "--metadata",
+    type=DOMAIN_METADATA_TYPE,
+    required=True,
+    help="Path to YAML file or a YAML string with metadata",
+)
+@click.option("-p", "--fee", type=Decimal, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 def update_cmd(
     ctx: click.Context,
@@ -143,10 +157,13 @@ def update_cmd(
     fingerprint: int,
     wallet_id: int,
     domain_name: str,
-    metadata: str,
-    fee: int,
+    metadata: DomainMetadata,
+    fee: Decimal,
     launcher_id: Optional[str],
 ) -> None:
+    """
+    Updates The metadata of a domain.
+    """
     root_path = ctx.obj["root_path"]
     asyncio.run(
         update(
@@ -156,7 +173,7 @@ def update_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            yaml_to_metadata(metadata),
+            metadata,
             xch_fee_to_mojo(fee),
             launcher_id,
         )
@@ -170,8 +187,14 @@ def update_cmd(
 @click.option("-f", "--fingerprint", type=int, required=True)
 @click.option("-w", "--wallet-id", type=int, required=True)
 @click.option("-d", "--domain-name", type=str, required=True)
-@click.option("-m", "--metadata", type=str, required=True, help="Path to YAML file or a YAML string with metadata")
-@click.option("-p", "--fee", type=int, required=True)
+@click.option(
+    "-m",
+    "--metadata",
+    type=DOMAIN_METADATA_TYPE,
+    required=True,
+    help="Path to YAML file or a YAML string with metadata",
+)
+@click.option("-p", "--fee", type=Decimal, required=True)
 @click.option("-k", "--new-pubkey", type=str, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 def transfer_cmd(
@@ -181,11 +204,14 @@ def transfer_cmd(
     fingerprint: int,
     wallet_id: int,
     domain_name: str,
-    metadata: str,
+    metadata: DomainMetadata,
     new_pubkey: str,
-    fee: int,
+    fee: Decimal,
     launcher_id: Optional[str],
 ) -> None:
+    """
+    Transfers a domain to a new pubkey.
+    """
     root_path = ctx.obj["root_path"]
     asyncio.run(
         transfer(
@@ -195,13 +221,15 @@ def transfer_cmd(
             fingerprint,
             wallet_id,
             domain_name,
-            yaml_to_metadata(metadata),
+            metadata,
             xch_fee_to_mojo(fee),
             new_pubkey,
             launcher_id,
         )
     )
 
+
+resolver.add_command(metadata)
 
 if __name__ == "__main__":
     resolver()
