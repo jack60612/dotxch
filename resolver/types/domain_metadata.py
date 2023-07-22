@@ -59,9 +59,7 @@ class DomainMetadata:
 
     def to_raw(self) -> DomainMetadataRaw:
         # we just leave the primary address as bytes32
-        raw: DomainMetadataRaw = DomainMetadataRaw(
-            [("metadata_version", METADATA_FORMAT_VERSION.encode("utf-8")), ("primary_address", self.primary_address)]
-        )
+        raw = [("metadata_version", METADATA_FORMAT_VERSION.encode("utf-8")), ("primary_address", self.primary_address)]
         for chain_key, chain_value in self.chain_records.items():
             raw.append((f"chain.{chain_key}", chain_value))
         # we also encode the string values as utf-8 bytes
@@ -69,7 +67,7 @@ class DomainMetadata:
             raw.append((f"dns.{dns_key}", dns_value.encode("utf-8")))
         for other_key, other_value in self.other_data.items():
             raw.append((f"other.{other_key}", other_value.encode("utf-8")))
-        return raw
+        return DomainMetadataRaw(raw)
 
     @classmethod
     def from_dict(cls, meta_dict: DomainMetadataDict) -> "DomainMetadata":
