@@ -1,3 +1,3 @@
-from resolver.cmds.resolver import main
+from resolver.cmds.resolver import resolver
 
-main()
+resolver()  # pylint: disable=no-value-for-parameter

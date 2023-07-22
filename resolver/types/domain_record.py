@@ -5,8 +5,8 @@ from chia.types.coin_spend import CoinSpend
 from chia.util.ints import uint32, uint64
 
 from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
-from resolver.drivers.puzzle_class import DomainMetadata
 from resolver.puzzles.domain_constants import GRACE_PERIOD
+from resolver.types.domain_metadata import DomainMetadata
 from resolver.types.resolution_status_code import ResolutionStatusCode
 
 
@@ -22,6 +22,7 @@ class DomainRecord:
     state_update_height: uint32  # The block where the state was last updated
     expiration_timestamp: uint64  # The domain expiry time.
     domain_class: DomainOuterPuzzle  # class matching the spend below.
+    domain_metadata: DomainMetadata  # metadata for the domain
     full_spend: CoinSpend  # last checked spend of the domain singleton coin.
 
     @classmethod
@@ -36,7 +37,8 @@ class DomainRecord:
         const_tuple: tuple[bytes, int],
     ) -> "DomainRecord":
         # const_tuple is a tuple of (sig_additional_data, max_block_cost)
-        d_class = DomainOuterPuzzle.from_coin_spend(spend, const_tuple)
+        d_class = DomainOuterPuzzle.from_outer_coin_spend(spend, const_tuple)
+        metadata = DomainMetadata.from_raw(d_class.domain_puzzle.cur_metadata)
         return cls(
             creation_height,
             creation_timestamp,
@@ -44,6 +46,7 @@ class DomainRecord:
             state_update_height,
             expiration_timestamp,
             d_class,
+            metadata,
             spend,
         )
 
@@ -63,10 +66,6 @@ class DomainRecord:
     @property
     def launcher_id(self) -> bytes32:
         return self.domain_class.launcher_id
-
-    @property
-    def cur_metadata(self) -> DomainMetadata:
-        return self.domain_class.domain_puzzle.cur_metadata
 
     @property
     def grace_period_timestamp(self) -> uint64:

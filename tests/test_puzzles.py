@@ -19,6 +19,7 @@ from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
 from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
 from resolver.puzzles.domain_constants import REGISTRATION_FEE_ADDRESS
 from resolver.puzzles.puzzles import DOMAIN_PH_MOD, DOMAIN_PH_MOD_HASH, INNER_SINGLETON_MOD, REGISTRATION_FEE_MOD_HASH
+from resolver.types.domain_metadata import DomainMetadataRaw
 
 seed = mnemonic_to_seed(
     "swarm fly ability pipe decide square involve caution tonight accuse weasel zero giant "
@@ -32,7 +33,7 @@ class TestPuzzles:
         domain_name = "jack.xch"
         correct_ph = bytes32.from_hexstr("343026ae53f5de0bf5d9e041aeda6d05cff53f23cb2494868e73bf7c330f4fdd")
         example_coin = Coin(REGISTRATION_FEE_MOD_HASH, correct_ph, 1)
-        dp_class = DomainPuzzle(domain_name)
+        dp_class = DomainPuzzle(domain_name=domain_name)
         assert dp_class.complete_puzzle_hash() == correct_ph
         cs = dp_class.to_coin_spend(example_coin)
         assert compute_additions(cs) == []  # No additions / new coins
@@ -49,7 +50,12 @@ class TestPuzzles:
     def test_registration_fee(self) -> None:
         example_coin = Coin(DOMAIN_PH_MOD_HASH, REGISTRATION_FEE_MOD_HASH, 10000000001)
         domain_name = "jack.xch"
-        reg_class = RegistrationFeePuzzle(domain_name, bytes32(b"6" * 32), bytes32(b"7" * 32), bytes32(b"8" * 32))
+        reg_class = RegistrationFeePuzzle(
+            domain_name=domain_name,
+            domain_outer_ph=bytes32(b"6" * 32),
+            singleton_launcher_id=bytes32(b"7" * 32),
+            singleton_parent_id=bytes32(b"8" * 32),
+        )
         cs = reg_class.to_coin_spend(example_coin)
         r = compute_additions(cs)
         assert r[1].puzzle_hash == DOMAIN_PH_MOD.curry(domain_name).get_tree_hash()
@@ -66,14 +72,16 @@ class TestPuzzles:
     async def test_inner_puzzle(self) -> None:
         domain_name = "jack.xch"
         pub_key = PRIVATE_KEY.get_g1()
-        m_data = [("a", "a"), ("b", "b")]
+        m_data = DomainMetadataRaw([("a", b"a"), ("b", b"b")])
         inner_puz_class = DomainInnerPuzzle(
-            domain_name,
-            pub_key,
-            m_data,
+            domain_name=domain_name,
+            cur_pub_key=pub_key,
+            cur_metadata=m_data,
         )
         example_coin = Coin(DOMAIN_PH_MOD_HASH, inner_puz_class.complete_puzzle_hash(), 1)
-        inner_puz_class.generate_solution_args(coin=example_coin, renew=True, new_metadata=m_data * 2)
+        inner_puz_class.generate_solution_args(
+            coin=example_coin, renew=True, new_metadata=DomainMetadataRaw(m_data * 2)
+        )
         with pytest.raises(NotImplementedError):
             await inner_puz_class.to_spend_bundle(AugSchemeMPL.key_gen(token_bytes(32)), example_coin)
 
@@ -96,11 +104,11 @@ class TestPuzzles:
     async def test_outer_puzzle(self) -> None:
         domain_name = "jack.xch"
         pub_key = PRIVATE_KEY.get_g1()
-        m_data = [("a", "a"), ("b", "b")]
+        m_data = DomainMetadataRaw([("a", b"a"), ("b", b"b")])
         inner_puz_class = DomainInnerPuzzle(
-            domain_name,
-            pub_key,
-            m_data,
+            domain_name=domain_name,
+            cur_pub_key=pub_key,
+            cur_metadata=m_data,
         )
         example_coin = Coin(DOMAIN_PH_MOD_HASH, inner_puz_class.complete_puzzle_hash(), 10000000002)
         inner_puz_class.generate_solution_args(coin=example_coin, renew=True)
@@ -120,10 +128,10 @@ class TestPuzzles:
             example_coin,
         )
         const_tuple = (DEFAULT_CONSTANTS.AGG_SIG_ME_ADDITIONAL_DATA, DEFAULT_CONSTANTS.MAX_BLOCK_COST_CLVM)
-        outer_class = DomainOuterPuzzle.from_coin_spend(spend_bundle.coin_spends[1], const_tuple)
+        outer_class = DomainOuterPuzzle.from_outer_coin_spend(spend_bundle.coin_spends[1], const_tuple)
         example_outer_coin = Coin(DOMAIN_PH_MOD_HASH, outer_class.complete_puzzle_hash(), 1)
         outer_class.domain_puzzle.generate_solution_args(
-            renew=True, new_metadata=[("bruh", "bruh")], coin=example_outer_coin
+            renew=True, new_metadata=DomainMetadataRaw([("bruh", b"bruh")]), coin=example_outer_coin
         )
         # validate announcements
         assert puzzle_assertions == [
@@ -139,11 +147,13 @@ class TestPuzzles:
         non_eph_adds = spend_bundle.not_ephemeral_additions()
         assert len(non_eph_adds) == 3
         assert REGISTRATION_FEE_ADDRESS in [coin.puzzle_hash for coin in non_eph_adds]
-        assert DomainPuzzle(domain_name).complete_puzzle_hash() in [coin.puzzle_hash for coin in non_eph_adds]
-        working_outer_class = DomainOuterPuzzle.from_coin_spend(
+        assert DomainPuzzle(domain_name=domain_name).complete_puzzle_hash() in [
+            coin.puzzle_hash for coin in non_eph_adds
+        ]
+        working_outer_class = DomainOuterPuzzle.from_outer_coin_spend(
             outer_class.to_coin_spend(example_outer_coin), const_tuple
         )
         assert working_outer_class.domain_name == domain_name
         assert working_outer_class.puzzle_mod == outer_class.puzzle_mod
         assert working_outer_class.launcher_id == outer_class.launcher_id
-        assert working_outer_class.domain_puzzle.cur_metadata == [("bruh", "bruh")]
+        assert working_outer_class.domain_puzzle.cur_metadata == [("bruh", b"bruh")]

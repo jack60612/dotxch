@@ -2,8 +2,9 @@ from setuptools import setup
 
 dependencies = [
     "packaging",
-    "chia-blockchain==1.8.0",
+    "chia-blockchain==1.8.3rc1",
     "blspy",
+    "click",
 ]
 
 dev_dependencies = [
@@ -52,7 +53,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "resolver = resolver.cmds.resolver:main",
+            "resolver = resolver.cmds.resolver:resolver",
         ]
     },
     package_data={
