@@ -232,4 +232,4 @@ def transfer_cmd(
 resolver.add_command(metadata)
 
 if __name__ == "__main__":
-    resolver()  # pylint: no-value-for-parameter
+    resolver()  # pylint: disable=no-value-for-parameter
