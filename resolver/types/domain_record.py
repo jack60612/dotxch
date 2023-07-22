@@ -37,7 +37,7 @@ class DomainRecord:
         const_tuple: tuple[bytes, int],
     ) -> "DomainRecord":
         # const_tuple is a tuple of (sig_additional_data, max_block_cost)
-        d_class = DomainOuterPuzzle.from_coin_spend(spend, const_tuple)
+        d_class = DomainOuterPuzzle.from_outer_coin_spend(spend, const_tuple)
         metadata = DomainMetadata.from_raw(d_class.domain_puzzle.cur_metadata)
         return cls(
             creation_height,

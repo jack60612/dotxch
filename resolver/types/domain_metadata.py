@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import NewType, Optional, Union
 
 from chia.types.blockchain_format.sized_bytes import bytes32
@@ -25,9 +25,9 @@ def decode_metadata_keys(metadata: list[tuple[bytes, bytes]]) -> DomainMetadataR
 class DomainMetadata:
     metadata_version: str
     primary_address: bytes32
-    chain_records: dict[str, bytes32]
-    dns_records: dict[str, str]
-    other_data: dict[str, str]
+    chain_records: dict[str, bytes32] = field(default_factory=dict)
+    dns_records: dict[str, str] = field(default_factory=dict)
+    other_data: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_raw(cls, raw: DomainMetadataRaw) -> "DomainMetadata":

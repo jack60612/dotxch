@@ -195,8 +195,8 @@ async def renew(
         if cur_record.domain_record is None:
             raise ValueError(f"Domain {domain_name} does not exist.")
         if (
-            cur_record.status_code != ResolutionStatusCode.LATEST
-            or cur_record.status_code != ResolutionStatusCode.GRACE_PERIOD
+            cur_record.status_code is ResolutionStatusCode.LATEST
+            or cur_record.status_code is ResolutionStatusCode.GRACE_PERIOD
         ):
             raise ValueError(
                 f"Domain {domain_name} is not in a state where it can be renewed, "

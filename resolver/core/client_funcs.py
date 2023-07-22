@@ -106,7 +106,7 @@ class NodeClient:
 
         # Part 1: Get all Launcher IDs for the given domain name.
         # calculate the puzzle hash for the domain name.
-        domain_ph = DomainPuzzle(domain_name).complete_puzzle_hash()
+        domain_ph = DomainPuzzle(domain_name=domain_name).complete_puzzle_hash()
         # we get all coins for that ph.
         coin_records: list[CoinRecord] = [
             cr for cr in await self.client.get_coin_records_by_puzzle_hash(domain_ph) if cr.coin.amount == 1
@@ -297,7 +297,7 @@ class NodeClient:
         current_block, last_tx_block = await self.get_peak_and_last_tx()
         latest_timestamp: Optional[uint64] = last_tx_block.timestamp
         assert latest_timestamp is not None  # tx always has a timestamp
-        domain_class = DomainPuzzle(domain_name)
+        domain_class = DomainPuzzle(domain_name=domain_name)
         domain_ph = domain_class.complete_puzzle_hash()
         # we get all coins for that ph & convert those coins to coin spends.
         coin_spends: list[CoinSpend] = [
@@ -439,7 +439,7 @@ class WalletClient:
                 raise ValueError(f"Domain {domain_name} already exists.")
 
         # now that we have checked, we can create the inner domain puzzle.
-        inner_class = DomainInnerPuzzle(domain_name, pub_key, metadata.to_raw())
+        inner_class = DomainInnerPuzzle(domain_name=domain_name, cur_pub_key=pub_key, cur_metadata=metadata.to_raw())
         total_amount = fee + TOTAL_NEW_DOMAIN_AMOUNT
         # now we find a coin to use.
         removals: list[Coin] = await self.client.select_coins(
@@ -472,7 +472,7 @@ class WalletClient:
         assert tx.spend_bundle is not None  # should never be none.
         # now we aggregate the spend bundles, and push the transaction.
         final_sb = SpendBundle.aggregate([spend_bundle, tx.spend_bundle])
-        await self.client.push_tx(final_sb)
+        await self.client.push_tx(final_sb)  # type: ignore[no-untyped-call]
         return tx, final_sb
 
     async def renew_domain(
@@ -528,7 +528,7 @@ class WalletClient:
         assert tx.spend_bundle is not None  # should never be none.
         # now we aggregate the spend bundles, and push the transaction.
         final_sb = SpendBundle.aggregate([spend_bundle, tx.spend_bundle])
-        await self.client.push_tx(final_sb)
+        await self.client.push_tx(final_sb)  # type: ignore[no-untyped-call]
         return tx, final_sb
 
     async def update_metadata(
@@ -576,7 +576,7 @@ class WalletClient:
             assert tx.spend_bundle is not None  # should never be none.
             # now we aggregate the spend bundles, and push the transaction.
             final_sb = SpendBundle.aggregate([final_sb, tx.spend_bundle])
-        await self.client.push_tx(final_sb)
+        await self.client.push_tx(final_sb)  # type: ignore[no-untyped-call]
         return tx, final_sb
 
     async def update_pubkey(
@@ -627,5 +627,5 @@ class WalletClient:
             assert tx.spend_bundle is not None  # should never be none.
             # now we aggregate the spend bundles, and push the transaction.
             final_sb = SpendBundle.aggregate([final_sb, tx.spend_bundle])
-        await self.client.push_tx(final_sb)
+        await self.client.push_tx(final_sb)  # type: ignore[no-untyped-call]
         return tx, final_sb

@@ -2,7 +2,7 @@ from setuptools import setup
 
 dependencies = [
     "packaging",
-    "chia-blockchain==1.8.0",
+    "chia-blockchain==1.8.2",
     "blspy",
     "click",
 ]

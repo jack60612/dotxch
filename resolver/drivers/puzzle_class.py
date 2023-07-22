@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
 
@@ -13,6 +13,7 @@ from chia.types.spend_bundle import SpendBundle
 from chia.util.ints import uint64
 from chia.wallet.lineage_proof import LineageProof
 from chia.wallet.sign_coin_spends import sign_coin_spends
+from clvm.SExp import CastableType
 
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 
@@ -94,36 +95,16 @@ def program_to_lineage_proof(program: Program) -> LineageProof:
     return LineageProof(parent_name, inner_ph, amount)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BasePuzzle:
     puzzle_type: PuzzleType
     raw_puzzle: Program
     puzzle_mod: bytes32
     num_curry_args: int
     num_solution_args: int
-    solution_args: list[Any]
-    curry_args: list[Any]
-    domain_name: Optional[str]
-
-    def __init__(
-        self,
-        puzzle_type: PuzzleType,
-        raw_puzzle: Program,
-        puzzle_mod: bytes32,
-        num_curry_args: int,
-        num_solution_args: int,
-        curry_args: Optional[list[Any]] = None,
-        solution_args: Optional[list[Any]] = None,
-        domain_name: Optional[str] = None,
-    ):
-        self.puzzle_type: PuzzleType = puzzle_type
-        self.domain_name: Optional[str] = domain_name
-        self.raw_puzzle: Program = raw_puzzle
-        self.puzzle_mod: bytes32 = puzzle_mod
-        self.num_curry_args: int = num_curry_args
-        self.curry_args: list[Any] = curry_args if curry_args else []
-        self.num_solution_args: int = num_solution_args
-        self.solution_args: list[Any] = solution_args if solution_args else []
+    curry_args: list[CastableType] = field(default_factory=list)
+    solution_args: list[CastableType] = field(default_factory=list)
+    domain_name: Optional[str] = field(default=None)
 
     @classmethod
     def from_coin_spend(cls, coin_spend: CoinSpend, puzzle_type: PuzzleType) -> "BasePuzzle":
