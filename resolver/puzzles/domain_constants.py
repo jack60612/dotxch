@@ -6,8 +6,9 @@ This file also contains the registration address and things like that.
 """
 # Has no reason / should never be changed
 year = 31556926  # year in seconds!
-month = 2629743  # month in seconds!
+month = int(year / 12)  # month in seconds!
 SINGLETON_AMOUNT = 1
+EXPECTED_TLD = "xch"
 
 # Protocol / Version Constants
 PUZZLE_VERSION: str = "v1.0.0"

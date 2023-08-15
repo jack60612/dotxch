@@ -23,11 +23,12 @@ from chia.wallet.puzzles.singleton_top_layer_v1_1 import (
 )
 
 from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
-from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType, sign_coin_spend
+from resolver.drivers.puzzle_class import BasePuzzle, sign_coin_spend
 from resolver.drivers.registration_fee_driver import RegistrationFeePuzzle
 from resolver.puzzles.domain_constants import PUZZLE_VERSION
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
 from resolver.types.domain_metadata import DomainMetadataRaw
+from resolver.types.puzzle_type import PuzzleType
 
 
 async def _renew_domain(

@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Optional
 
 from blspy import G1Element, PrivateKey
@@ -16,13 +15,7 @@ from chia.wallet.sign_coin_spends import sign_coin_spends
 from clvm.SExp import CastableType
 
 from resolver.puzzles.puzzles import REGISTRATION_FEE_MOD_HASH
-
-
-class PuzzleType(Enum):
-    DOMAIN = 0
-    FEE = 1
-    INNER = 2
-    OUTER = 3
+from resolver.types.puzzle_type import PuzzleType
 
 
 def program_to_list(program: Program) -> list[Any]:

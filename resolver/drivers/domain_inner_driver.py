@@ -8,9 +8,10 @@ from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
 from chia.types.spend_bundle import SpendBundle
 
-from resolver.drivers.puzzle_class import BasePuzzle, PuzzleType
+from resolver.drivers.puzzle_class import BasePuzzle
 from resolver.puzzles.puzzles import INNER_SINGLETON_MOD
 from resolver.types.domain_metadata import DomainMetadataRaw, decode_metadata_keys
+from resolver.types.puzzle_type import PuzzleType
 
 
 @dataclass(kw_only=True)

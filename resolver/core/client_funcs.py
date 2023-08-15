@@ -24,11 +24,30 @@ from resolver.drivers.domain_driver import DomainPuzzle
 from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
 from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
 from resolver.drivers.puzzle_class import validate_initial_spend
-from resolver.puzzles.domain_constants import REGISTRATION_LENGTH, TOTAL_FEE_AMOUNT, TOTAL_NEW_DOMAIN_AMOUNT
+from resolver.puzzles.domain_constants import (
+    EXPECTED_TLD,
+    MAX_REGISTRATION_GAP,
+    REGISTRATION_LENGTH,
+    TOTAL_FEE_AMOUNT,
+    TOTAL_NEW_DOMAIN_AMOUNT,
+)
 from resolver.types.domain_metadata import DomainMetadata, DomainMetadataRaw
 from resolver.types.domain_record import DomainRecord
 from resolver.types.resolution_result import ResolutionResult
 from resolver.types.resolution_status_code import ResolutionStatusCode
+
+
+def process_domain_name(domain_name: str) -> str:
+    """
+    Remove the tld from a domain name if it is present and matches the expected tld, and make it lowercase.
+    :param domain_name:
+    :return:
+    """
+    if "." in domain_name:
+        domain_name, tld = domain_name.split(".", maxsplit=2)
+        if tld.lower() != EXPECTED_TLD:
+            raise ValueError(f"Invalid TLD: {tld}")
+    return domain_name.lower()
 
 
 class NodeClient:
@@ -103,6 +122,7 @@ class NodeClient:
         _, last_tx_block = await self.get_peak_and_last_tx()
         latest_timestamp: Optional[uint64] = last_tx_block.timestamp
         assert latest_timestamp is not None  # tx always has a timestamp
+        domain_name = process_domain_name(domain_name)  # remove tld if present
 
         # Part 1: Get all Launcher IDs for the given domain name.
         # calculate the puzzle hash for the domain name.
@@ -181,8 +201,17 @@ class NodeClient:
 
     @staticmethod
     def _calculate_expiration_timestamp(creation_timestamp: uint64, renewal_timestamps: list[uint64]) -> uint64:
+        exp_timestamp = creation_timestamp + REGISTRATION_LENGTH
         # the creation timestamp is the starting point
-        return uint64(creation_timestamp + ((len(renewal_timestamps)) * REGISTRATION_LENGTH))
+        for i in range(1, len(renewal_timestamps)):
+            renewal_ts = renewal_timestamps[i]
+            if renewal_ts < exp_timestamp + REGISTRATION_LENGTH:
+                exp_timestamp += REGISTRATION_LENGTH
+            elif renewal_ts < exp_timestamp + MAX_REGISTRATION_GAP:  # if it was renewed from the grace period
+                exp_timestamp = renewal_ts + REGISTRATION_LENGTH
+            else:
+                break
+        return uint64(exp_timestamp)
 
     async def get_latest_domain_state(self, res_result: ResolutionResult) -> ResolutionResult:
         """
@@ -228,7 +257,7 @@ class NodeClient:
     async def filter_domains(
         self,
         res_results: list[ResolutionResult],
-        allow_grace_period: bool = False,
+        allow_grace_period: bool = True,
         return_conflicting: bool = False,
     ) -> list[ResolutionResult]:
         """
@@ -297,6 +326,7 @@ class NodeClient:
         current_block, last_tx_block = await self.get_peak_and_last_tx()
         latest_timestamp: Optional[uint64] = last_tx_block.timestamp
         assert latest_timestamp is not None  # tx always has a timestamp
+        domain_name = process_domain_name(domain_name)  # remove tld if present
         domain_class = DomainPuzzle(domain_name=domain_name)
         domain_ph = domain_class.complete_puzzle_hash()
         # we get all coins for that ph & convert those coins to coin spends.
@@ -313,7 +343,7 @@ class NodeClient:
         return sb
 
     async def resolve_domain(
-        self, domain_name: str, launcher_id: Optional[bytes32] = None, grace_period: bool = False
+        self, domain_name: str, launcher_id: Optional[bytes32] = None, grace_period: bool = True
     ) -> ResolutionResult:
         """
         This function gets a ResolutionResult for a given domain name. (resolves it)
@@ -430,6 +460,8 @@ class WalletClient:
 
         if self.client is None:
             raise ValueError("Not Connected to a Wallet.")
+
+        domain_name = process_domain_name(domain_name)  # remove tld if present
 
         if not skip_existing_check:
             # we first check if the domain name is already taken
