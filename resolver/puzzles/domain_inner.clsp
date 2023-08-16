@@ -1,13 +1,13 @@
 (mod (REG_FEE_PH DOMAIN_NAME MOD_HASH PUB_KEY METADATA parent_id mode new_metadata new_pub_key)
-    ;; Note: REG_FEE_PH & DOMAIN_NAME are never changed in puzzle, so the mod hash must be based on
-    ;; REG_FEE_PH is the puzzle hash of the registration fee puzzle.
-    ;; a puzzle with those values already curried.
-    ; mode = 0 for normal metadata update, 1 for renewal / creation
+    ;;; Note: REG_FEE_PH & DOMAIN_NAME are never changed in puzzle, so the mod hash must be based on
+    ;;; REG_FEE_PH is the puzzle hash of the registration fee puzzle.
+    ;;; a puzzle with those values already curried.
+    ;;; mode = 0 for normal metadata update, 1 for renewal / creation
 
     (include condition_codes.clib)
     (include "curry-and-treehash.clib")
 
-    ; takes a lisp tree and returns the hash of it
+    ;; takes a lisp tree and returns the hash of it
     (defun sha256tree1 (TREE)
         (if (l TREE)
             (sha256 2 (sha256tree1 (f TREE)) (sha256tree1 (r TREE)))
@@ -15,10 +15,10 @@
         )
     )
 
-    (defun new-puzzle-hash (MOD_HASH mod_hash_hash metadata pub_key)
+    (defun-inline new-puzzle-hash (MOD_HASH mod_hash_hash metadata pub_key)
         (puzzle-hash-of-curried-function
             MOD_HASH
-            metadata pub_key mod_hash_hash  ;; parameters must be passed in reverse order (Thanks Seb)
+            metadata pub_key mod_hash_hash ; parameters must be passed in reverse order (Thanks Seb)
         )
     )
 
@@ -27,29 +27,35 @@
         (list CREATE_COIN (new-puzzle-hash MOD_HASH (sha256tree1 MOD_HASH) (sha256tree1 metadata) (sha256tree1 pub_key)) 1)
     )
 
-    ;;; main
-    (c ; append condition below, to list that was combined with the create puz announcement below too.
-        ; standard conditions
-        (list ASSERT_MY_PARENT_ID parent_id) ;; Validate Parent ID
+    ;; create list combining code
+    (defun combine-lists (main_list new_list)
+        (if new_list ; if list is not empty
+            (combine-lists (c (f new_list) main_list) (r new_list)) ; add first element to main list, and recurse
+            main_list
+        )
+    )
 
-        (c ; add puzzle announcement to front of all conditions.
-            (list CREATE_PUZZLE_ANNOUNCEMENT (sha256 DOMAIN_NAME parent_id)) ;; for making sure the fee (tx or reg) cant be stolen
-            (if new_pub_key
-                (list ;; Transferring Domain
-                    (list AGG_SIG_ME PUB_KEY (sha256tree1 new_pub_key new_metadata))
-                    (create-coin-with-new-ph MOD_HASH new_metadata new_pub_key)
+    ;; main
+    ;; append condition below, to list that was combined with the create puz announcement below too.
+    (combine-lists
+        (list ; standard conditions
+            (list ASSERT_MY_PARENT_ID parent_id) ; Validate Parent ID
+            (list CREATE_PUZZLE_ANNOUNCEMENT (sha256 DOMAIN_NAME parent_id)) ; for making sure the fee (tx or reg) cant be stolen
+            (list AGG_SIG_ME PUB_KEY (sha256tree1 mode new_metadata new_pub_key)) ; Force all arguments to be signed
+        )
+        (if new_pub_key ; other conditions
+            (list ; Transferring Domain
+                (create-coin-with-new-ph MOD_HASH new_metadata new_pub_key)
+            )
+            (if mode
+                (list ; Renewing Domain
+                    (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 REG_FEE_PH (sha256 DOMAIN_NAME parent_id))) ; from the fee puzzle
+                    (create-coin-with-new-ph MOD_HASH (if new_metadata new_metadata METADATA) PUB_KEY)
                 )
-                (if mode
-                    (list ;; Renewing Domain
-                        (list AGG_SIG_ME PUB_KEY (sha256tree1 parent_id (if new_metadata new_metadata METADATA))) ;; parent id + new or existing metadata
-                        (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 REG_FEE_PH (sha256 DOMAIN_NAME parent_id))) ;; from the fee puzzle
-                        (create-coin-with-new-ph MOD_HASH (if new_metadata new_metadata METADATA) PUB_KEY)
-                    )
-                    (list ;; Updating Metadata
-                        (list AGG_SIG_ME PUB_KEY (sha256tree1 new_metadata))
-                        (create-coin-with-new-ph MOD_HASH new_metadata PUB_KEY)
-                    )
+                (list ; Updating Metadata
+                    (create-coin-with-new-ph MOD_HASH new_metadata PUB_KEY)
                 )
             )
-    )   )
+        )
+    )
 )

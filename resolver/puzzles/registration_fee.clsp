@@ -1,16 +1,17 @@
 (mod (DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name singleton_ph launcher_id singleton_parent_id)
-;; all curried arguments should never change!
+;;; all curried arguments should never change!
 
     (include condition_codes.clib)
     (include curry-and-treehash.clib)
 
     (defun stage1 (DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name singleton_ph launcher_id id_domain_hash)
         (list
-             (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 singleton_ph id_domain_hash)) ;; this is from the singleton inner puzzle
-             (list CREATE_PUZZLE_ANNOUNCEMENT  id_domain_hash) ;; this is for the singleton and the initial spend
+             (list ASSERT_PUZZLE_ANNOUNCEMENT (sha256 singleton_ph id_domain_hash)) ; this is from the singleton inner puzzle
+             (list CREATE_PUZZLE_ANNOUNCEMENT  id_domain_hash) ; this is for the singleton and the initial spend
              (list CREATE_COIN FEE_ADDRESS FEE_AMOUNT)
              (list CREATE_COIN (puzzle-hash-of-curried-function DOMAIN_PH_MOD (sha256 1 domain_name)) 1 (list launcher_id))
-    ))
+        )
+    )
     ; main
     (stage1 DOMAIN_PH_MOD FEE_ADDRESS FEE_AMOUNT domain_name singleton_ph launcher_id (sha256 domain_name singleton_parent_id))
 )
