@@ -66,6 +66,7 @@ class DomainRecord:
 
     def to_dict(self) -> Dict[str, object]:
         return {
+            "launcher_id": "0x" + self.launcher_id.hex(),
             "creation_height": self.creation_height,
             "creation_timestamp": self.creation_timestamp,
             "registration_update_height": self.registration_update_height,
