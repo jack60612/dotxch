@@ -2,6 +2,7 @@ import dataclasses
 from pathlib import Path
 from typing import Any, List, Optional
 
+from aiohttp import ClientConnectorError
 from blspy import G1Element, G2Element, PrivateKey
 from chia.consensus.block_record import BlockRecord
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
@@ -76,13 +77,17 @@ class NodeClient:
     async def start(self) -> None:
         self_hostname = self.config["self_hostname"]
         self.client = await FullNodeRpcClient.create(self_hostname, self.rpc_port, self.root_path, self.config)
+        try:
+            await self.client.healthz()
+        except ClientConnectorError:
+            await self.stop()
+            raise ValueError("Could not connect to Node.")
 
     async def stop(self) -> None:
         if self.client is not None:
             self.client.close()
             await self.client.await_closed()
             self.client = None
-        return None
 
     async def get_peak_and_last_tx(self) -> tuple[BlockRecord, BlockRecord]:
         """
@@ -429,6 +434,7 @@ class WalletClient:
         log_in_response = await self.client.log_in(fingerprint)
         if log_in_response["success"] is False:
             print(f"Login failed: {log_in_response}")
+            await self.stop()
             raise ValueError("Login failed")
         self.fingerprint = fingerprint
         self.master_private_key = PrivateKey.from_bytes(
