@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any, Dict
 
 from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.types.coin_spend import CoinSpend
@@ -40,15 +41,39 @@ class DomainRecord:
         d_class = DomainOuterPuzzle.from_outer_coin_spend(spend, const_tuple)
         metadata = DomainMetadata.from_raw(d_class.domain_puzzle.cur_metadata)
         return cls(
-            creation_height,
-            creation_timestamp,
-            registration_update_height,
-            state_update_height,
-            expiration_timestamp,
-            d_class,
-            metadata,
-            spend,
+            creation_height=creation_height,
+            creation_timestamp=creation_timestamp,
+            registration_update_height=registration_update_height,
+            state_update_height=state_update_height,
+            expiration_timestamp=expiration_timestamp,
+            domain_class=d_class,
+            domain_metadata=metadata,
+            full_spend=spend,
         )
+
+    @classmethod
+    def from_dict(cls, dr_dict: Dict[str, Any], const_tuple: tuple[bytes, int]) -> "DomainRecord":
+        coin_spend = CoinSpend.from_json_dict(dr_dict["full_spend"])
+        return cls.from_coin_spend(
+            creation_height=uint32(dr_dict["creation_height"]),
+            creation_timestamp=uint64(dr_dict["creation_timestamp"]),
+            registration_update_height=uint32(dr_dict["registration_update_height"]),
+            state_update_height=uint32(dr_dict["state_update_height"]),
+            expiration_timestamp=uint64(dr_dict["expiration_timestamp"]),
+            spend=coin_spend,
+            const_tuple=const_tuple,
+        )
+
+    def to_dict(self) -> Dict[str, object]:
+        return {
+            "creation_height": self.creation_height,
+            "creation_timestamp": self.creation_timestamp,
+            "registration_update_height": self.registration_update_height,
+            "state_update_height": self.state_update_height,
+            "expiration_timestamp": self.expiration_timestamp,
+            "domain_metadata": self.domain_metadata.to_dict(),
+            "full_spend": self.full_spend.to_json_dict(),
+        }
 
     @property
     def spend_height(self) -> uint32:
