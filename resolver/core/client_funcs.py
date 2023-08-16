@@ -1,6 +1,6 @@
 import dataclasses
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from blspy import G1Element, G2Element, PrivateKey
 from chia.consensus.block_record import BlockRecord
@@ -43,11 +43,15 @@ def process_domain_name(domain_name: str) -> str:
     :param domain_name:
     :return:
     """
+    domain_name = domain_name.lower()
     if "." in domain_name:
-        domain_name, tld = domain_name.split(".", maxsplit=2)
-        if tld.lower() != EXPECTED_TLD:
+        try:
+            domain_name, tld = domain_name.split(".", maxsplit=2)
+        except ValueError:
+            raise ValueError(f"Invalid Domain Name: {domain_name}")
+        if tld != EXPECTED_TLD:
             raise ValueError(f"Invalid TLD: {tld}")
-    return domain_name.lower()
+    return domain_name
 
 
 class NodeClient:
@@ -125,6 +129,22 @@ class NodeClient:
         domain_name = process_domain_name(domain_name)  # remove tld if present
 
         # Part 1: Get all Launcher IDs for the given domain name.
+        l_ids_heights_and_ts: dict[
+            bytes32, list[tuple[uint32, uint64]]
+        ] = await self.discover_domain_launcher_ids_and_renewals(domain_name, launcher_ids)
+        # Part 2: Use the launcher ID and renewal times to get the oldest domain record.
+        initial_resolution_results: list[ResolutionResult] = await self.resolve_domain_launcher_ids(
+            latest_timestamp, domain_name, l_ids_heights_and_ts
+        )
+        return initial_resolution_results
+
+    async def discover_domain_launcher_ids_and_renewals(
+        self, domain_name: str, launcher_ids: Optional[List[bytes32]] = None
+    ) -> dict[bytes32, list[tuple[uint32, uint64]]]:
+        if self.client is None:
+            raise ValueError("Not Connected to a Node.")
+
+        # Part 1: Get all Launcher IDs for the given domain name.
         # calculate the puzzle hash for the domain name.
         domain_ph = DomainPuzzle(domain_name=domain_name).complete_puzzle_hash()
         # we get all coins for that ph.
@@ -151,15 +171,22 @@ class NodeClient:
                     launcher_ids_heights_and_ts[l_id].append((cr_height, cr_timestamp))
                 else:
                     launcher_ids_heights_and_ts[l_id] = [(cr_height, cr_timestamp)]
+        return launcher_ids_heights_and_ts
 
-        # now we get the children of the launcher coins, or the 1st domain singletons.
-        launcher_children_list: list[CoinRecord] = await self.client.get_coin_records_by_parent_ids(
-            list(launcher_ids_heights_and_ts.keys())  # launcher_ids
-        )
+    async def resolve_domain_launcher_ids(
+        self, latest_timestamp: uint64, domain_name: str, ids_and_renewals: dict[bytes32, list[tuple[uint32, uint64]]]
+    ) -> list[ResolutionResult]:
+        if self.client is None:
+            raise ValueError("Not Connected to a Node.")
+
         # Part 2: Process the found launcher_ids.
+        # Get the children of the launcher coins, or the 1st domain singletons.
+        launcher_children_list: list[CoinRecord] = await self.client.get_coin_records_by_parent_ids(
+            list(ids_and_renewals.keys())  # launcher_ids
+        )
         initial_resolution_results: list[ResolutionResult] = []
         for first_domain_cr in launcher_children_list:
-            launcher_id_record = launcher_ids_heights_and_ts[first_domain_cr.coin.parent_coin_info]  # height, timestamp
+            launcher_id_record = ids_and_renewals[first_domain_cr.coin.parent_coin_info]  # height, timestamp
             creation_height: uint32 = first_domain_cr.confirmed_block_index  # ephemeral so should match
             creation_timestamp: uint64 = first_domain_cr.timestamp
             renewal_timestamps: list[uint64] = [v[1] for v in launcher_id_record]  # list of timestamps

@@ -27,8 +27,8 @@ def resolver(ctx: click.Context, root_path: Path, simulator: bool) -> None:
 # Node Only Commands
 @resolver.command("resolve")
 @click.pass_context
+@click.argument("domain_name", type=str, required=True)
 @click.option("-n", "--full-node-rpc-port", type=int, default=None)
-@click.option("-d", "--domain-name", type=str, required=True)
 @click.option("-l", "--launcher-id", type=str, default=None)
 @click.option("-g", "--exclude-grace-period", is_flag=True, default=False)
 def resolve_cmd(
@@ -51,8 +51,8 @@ def resolve_cmd(
 @click.option("-n", "--full-node-rpc-port", type=int, default=None)
 @click.option("-r", "--wallet-rpc-port", type=int, default=None)
 @click.option("-f", "--fingerprint", type=int, required=True)
-@click.option("-w", "--wallet-id", type=int, required=True)
-@click.option("-d", "--domain-name", type=str, required=True)
+@click.option("-w", "--wallet-id", type=int, default=1)
+@click.argument("domain_name", type=str, required=True)
 @click.option(
     "-m",
     "--metadata",
@@ -97,8 +97,8 @@ def register_cmd(
 @click.option("-n", "--full-node-rpc-port", type=int, default=None)
 @click.option("-r", "--wallet-rpc-port", type=int, default=None)
 @click.option("-f", "--fingerprint", type=int, required=True)
-@click.option("-w", "--wallet-id", type=int, required=True)
-@click.option("-d", "--domain-name", type=str, required=True)
+@click.option("-w", "--wallet-id", type=int, default=1)
+@click.argument("domain_name", type=str, required=True)
 @click.option(
     "-m", "--metadata", type=DOMAIN_METADATA_TYPE, default=None, help="Path to YAML file or a YAML string with metadata"
 )
@@ -139,8 +139,8 @@ def renew_cmd(
 @click.option("-n", "--full-node-rpc-port", type=int, default=None)
 @click.option("-r", "--wallet-rpc-port", type=int, default=None)
 @click.option("-f", "--fingerprint", type=int, required=True)
-@click.option("-w", "--wallet-id", type=int, required=True)
-@click.option("-d", "--domain-name", type=str, required=True)
+@click.option("-w", "--wallet-id", type=int, default=1)
+@click.argument("domain_name", type=str, required=True)
 @click.option(
     "-m",
     "--metadata",
@@ -185,8 +185,8 @@ def update_cmd(
 @click.option("-n", "--full-node-rpc-port", type=int, default=None)
 @click.option("-r", "--wallet-rpc-port", type=int, default=None)
 @click.option("-f", "--fingerprint", type=int, required=True)
-@click.option("-w", "--wallet-id", type=int, required=True)
-@click.option("-d", "--domain-name", type=str, required=True)
+@click.option("-w", "--wallet-id", type=int, default=1)
+@click.argument("domain_name", type=str, required=True)
 @click.option(
     "-m",
     "--metadata",
