@@ -127,7 +127,7 @@ class ApiServer:
         l_id_bytes = None
         if launcher_id_hex is not None:  # we bypass cache if launcher id is provided
             try:
-                l_id_bytes = bytes32.fromhex(launcher_id_hex)
+                l_id_bytes = bytes32.from_hexstr(launcher_id_hex)
             except ValueError:
                 return web.json_response({"error": "Invalid launcher id"}, status=400)
         else:
