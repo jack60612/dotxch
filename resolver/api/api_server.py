@@ -14,11 +14,15 @@ from chia.types.blockchain_format.sized_bytes import bytes32
 from chia.util.default_root import DEFAULT_ROOT_PATH, SIMULATOR_ROOT_PATH
 from chia.util.ints import uint16
 
+from resolver import __version__
 from resolver.core.client_funcs import NodeClient, process_domain_name
 
 # setup logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, encoding="utf-8")
+
+
+headers = {"Resolver-Version": str(__version__), "Cache-Control": "max-age=120"}
 
 
 class FIFODictCache:
@@ -106,7 +110,7 @@ class ApiServer:
         ]
 
     async def hello(self, request: web.Request) -> web.Response:
-        return web.Response(text="Success!", headers={"Cache-Control": "max-age=120"})
+        return web.Response(text="Success!", headers=headers)
 
     async def resolve_domain(self, request: Request) -> web.Response:
         # get domain name
@@ -130,7 +134,7 @@ class ApiServer:
             # check if the domain name is in the cache.
             cache_result = self.fifo_cache.get(domain_name)
             if cache_result is not None:
-                return web.json_response(cache_result, headers={"Cache-Control": "max-age=120"})
+                return web.json_response(cache_result, headers=headers)
 
         # get dict resolution record
         res_result = (await self.node_client.resolve_domain(domain_name, l_id_bytes)).to_dict()
