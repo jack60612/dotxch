@@ -1,7 +1,8 @@
 import dataclasses
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
+from aiohttp import ClientConnectorError
 from blspy import G1Element, G2Element, PrivateKey
 from chia.consensus.block_record import BlockRecord
 from chia.consensus.default_constants import DEFAULT_CONSTANTS
@@ -24,11 +25,34 @@ from resolver.drivers.domain_driver import DomainPuzzle
 from resolver.drivers.domain_inner_driver import DomainInnerPuzzle
 from resolver.drivers.domain_outer_driver import DomainOuterPuzzle
 from resolver.drivers.puzzle_class import validate_initial_spend
-from resolver.puzzles.domain_constants import REGISTRATION_LENGTH, TOTAL_FEE_AMOUNT, TOTAL_NEW_DOMAIN_AMOUNT
+from resolver.puzzles.domain_constants import (
+    EXPECTED_TLD,
+    MAX_REGISTRATION_GAP,
+    REGISTRATION_LENGTH,
+    TOTAL_FEE_AMOUNT,
+    TOTAL_NEW_DOMAIN_AMOUNT,
+)
 from resolver.types.domain_metadata import DomainMetadata, DomainMetadataRaw
 from resolver.types.domain_record import DomainRecord
 from resolver.types.resolution_result import ResolutionResult
 from resolver.types.resolution_status_code import ResolutionStatusCode
+
+
+def process_domain_name(domain_name: str) -> str:
+    """
+    Remove the tld from a domain name if it is present and matches the expected tld, and make it lowercase.
+    :param domain_name:
+    :return:
+    """
+    domain_name = domain_name.lower()
+    if "." in domain_name:
+        try:
+            domain_name, tld = domain_name.split(".", maxsplit=2)
+        except ValueError:
+            raise ValueError(f"Invalid Domain Name: {domain_name}")
+        if tld != EXPECTED_TLD:
+            raise ValueError(f"Invalid TLD: {tld}")
+    return domain_name
 
 
 class NodeClient:
@@ -53,13 +77,17 @@ class NodeClient:
     async def start(self) -> None:
         self_hostname = self.config["self_hostname"]
         self.client = await FullNodeRpcClient.create(self_hostname, self.rpc_port, self.root_path, self.config)
+        try:
+            await self.client.healthz()
+        except ClientConnectorError:
+            await self.stop()
+            raise ValueError("Could not connect to Node.")
 
     async def stop(self) -> None:
         if self.client is not None:
             self.client.close()
             await self.client.await_closed()
             self.client = None
-        return None
 
     async def get_peak_and_last_tx(self) -> tuple[BlockRecord, BlockRecord]:
         """
@@ -103,6 +131,23 @@ class NodeClient:
         _, last_tx_block = await self.get_peak_and_last_tx()
         latest_timestamp: Optional[uint64] = last_tx_block.timestamp
         assert latest_timestamp is not None  # tx always has a timestamp
+        domain_name = process_domain_name(domain_name)  # remove tld if present
+
+        # Part 1: Get all Launcher IDs for the given domain name.
+        l_ids_heights_and_ts: dict[
+            bytes32, list[tuple[uint32, uint64]]
+        ] = await self.discover_domain_launcher_ids_and_renewals(domain_name, launcher_ids)
+        # Part 2: Use the launcher ID and renewal times to get the oldest domain record.
+        initial_resolution_results: list[ResolutionResult] = await self.resolve_domain_launcher_ids(
+            latest_timestamp, domain_name, l_ids_heights_and_ts
+        )
+        return initial_resolution_results
+
+    async def discover_domain_launcher_ids_and_renewals(
+        self, domain_name: str, launcher_ids: Optional[List[bytes32]] = None
+    ) -> dict[bytes32, list[tuple[uint32, uint64]]]:
+        if self.client is None:
+            raise ValueError("Not Connected to a Node.")
 
         # Part 1: Get all Launcher IDs for the given domain name.
         # calculate the puzzle hash for the domain name.
@@ -131,15 +176,22 @@ class NodeClient:
                     launcher_ids_heights_and_ts[l_id].append((cr_height, cr_timestamp))
                 else:
                     launcher_ids_heights_and_ts[l_id] = [(cr_height, cr_timestamp)]
+        return launcher_ids_heights_and_ts
 
-        # now we get the children of the launcher coins, or the 1st domain singletons.
-        launcher_children_list: list[CoinRecord] = await self.client.get_coin_records_by_parent_ids(
-            list(launcher_ids_heights_and_ts.keys())  # launcher_ids
-        )
+    async def resolve_domain_launcher_ids(
+        self, latest_timestamp: uint64, domain_name: str, ids_and_renewals: dict[bytes32, list[tuple[uint32, uint64]]]
+    ) -> list[ResolutionResult]:
+        if self.client is None:
+            raise ValueError("Not Connected to a Node.")
+
         # Part 2: Process the found launcher_ids.
+        # Get the children of the launcher coins, or the 1st domain singletons.
+        launcher_children_list: list[CoinRecord] = await self.client.get_coin_records_by_parent_ids(
+            list(ids_and_renewals.keys())  # launcher_ids
+        )
         initial_resolution_results: list[ResolutionResult] = []
         for first_domain_cr in launcher_children_list:
-            launcher_id_record = launcher_ids_heights_and_ts[first_domain_cr.coin.parent_coin_info]  # height, timestamp
+            launcher_id_record = ids_and_renewals[first_domain_cr.coin.parent_coin_info]  # height, timestamp
             creation_height: uint32 = first_domain_cr.confirmed_block_index  # ephemeral so should match
             creation_timestamp: uint64 = first_domain_cr.timestamp
             renewal_timestamps: list[uint64] = [v[1] for v in launcher_id_record]  # list of timestamps
@@ -181,8 +233,17 @@ class NodeClient:
 
     @staticmethod
     def _calculate_expiration_timestamp(creation_timestamp: uint64, renewal_timestamps: list[uint64]) -> uint64:
+        exp_timestamp = creation_timestamp + REGISTRATION_LENGTH
         # the creation timestamp is the starting point
-        return uint64(creation_timestamp + ((len(renewal_timestamps)) * REGISTRATION_LENGTH))
+        for i in range(1, len(renewal_timestamps)):
+            renewal_ts = renewal_timestamps[i]
+            if renewal_ts < exp_timestamp + REGISTRATION_LENGTH:
+                exp_timestamp += REGISTRATION_LENGTH
+            elif renewal_ts < exp_timestamp + MAX_REGISTRATION_GAP:  # if it was renewed from the grace period
+                exp_timestamp = renewal_ts + REGISTRATION_LENGTH
+            else:
+                break
+        return uint64(exp_timestamp)
 
     async def get_latest_domain_state(self, res_result: ResolutionResult) -> ResolutionResult:
         """
@@ -228,7 +289,7 @@ class NodeClient:
     async def filter_domains(
         self,
         res_results: list[ResolutionResult],
-        allow_grace_period: bool = False,
+        allow_grace_period: bool = True,
         return_conflicting: bool = False,
     ) -> list[ResolutionResult]:
         """
@@ -297,6 +358,7 @@ class NodeClient:
         current_block, last_tx_block = await self.get_peak_and_last_tx()
         latest_timestamp: Optional[uint64] = last_tx_block.timestamp
         assert latest_timestamp is not None  # tx always has a timestamp
+        domain_name = process_domain_name(domain_name)  # remove tld if present
         domain_class = DomainPuzzle(domain_name=domain_name)
         domain_ph = domain_class.complete_puzzle_hash()
         # we get all coins for that ph & convert those coins to coin spends.
@@ -313,7 +375,7 @@ class NodeClient:
         return sb
 
     async def resolve_domain(
-        self, domain_name: str, launcher_id: Optional[bytes32] = None, grace_period: bool = False
+        self, domain_name: str, launcher_id: Optional[bytes32] = None, grace_period: bool = True
     ) -> ResolutionResult:
         """
         This function gets a ResolutionResult for a given domain name. (resolves it)
@@ -372,6 +434,7 @@ class WalletClient:
         log_in_response = await self.client.log_in(fingerprint)
         if log_in_response["success"] is False:
             print(f"Login failed: {log_in_response}")
+            await self.stop()
             raise ValueError("Login failed")
         self.fingerprint = fingerprint
         self.master_private_key = PrivateKey.from_bytes(
@@ -430,6 +493,8 @@ class WalletClient:
 
         if self.client is None:
             raise ValueError("Not Connected to a Wallet.")
+
+        domain_name = process_domain_name(domain_name)  # remove tld if present
 
         if not skip_existing_check:
             # we first check if the domain name is already taken
